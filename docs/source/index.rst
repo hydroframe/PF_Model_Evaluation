@@ -9,6 +9,7 @@ Our project aims to do some cool stuff.
    :caption: Contents
 
    modules
+   installation
 
 
 Indices and tables

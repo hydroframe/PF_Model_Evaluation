@@ -4,7 +4,7 @@ import pfspinup.pfio as pfio
 from pfspinup.common import water_table_depth
 
 
-def _test_water_table_depth(run_dir, run_name, test_data_dir):
+def test_water_table_depth(run_dir, run_name, test_data_dir):
 
     pressure_file = os.path.join(run_dir, f'{run_name}.out.press.00030.pfb')
     saturation_file = os.path.join(run_dir, f'{run_name}.out.satur.00030.pfb')
