@@ -1,0 +1,10 @@
+matplotlib
+mock
+numpy
+numpydoc
+pandas
+parflowio
+pytest
+sphinx
+sphinxcontrib-bibtex
+sphinx-rtd-theme
