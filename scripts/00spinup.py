@@ -71,7 +71,8 @@ if __name__ == '__main__':
 
     # recharge = recharge rate at top layer * dx * dy * top layer thickness *
     #            the interval between two consecutive outputs (at steady state)
-    rech = recharge_layers[-1, :, :] * dx * dy * thickness[-1] * metadata['TimeStep.MaxStep']
+    # TODO: Get the 100.0 from the metadata file + index difference in successive files
+    rech = recharge_layers[-1, :, :] * dx * dy * thickness[-1] * 100.0
     pctchange = [0] * (nt-1)
     Totpctchg_grid = np.array([]).reshape(0, nx, ny)
     for i in range(nt-1):
