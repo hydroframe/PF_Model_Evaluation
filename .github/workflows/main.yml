@@ -7,7 +7,7 @@ on:
     branches: [ master, develop ]
 
 jobs:
-  build:
+  run_tests:
 
     runs-on: ubuntu-latest
     strategy:
@@ -44,22 +44,33 @@ jobs:
           fail_ci_if_error: false
 
   build_docs:
+
     runs-on: ubuntu-latest
-    container: debian:buster-slim
+    strategy:
+      matrix:
+        python: [3.6]
 
     steps:
+      - uses: actions/checkout@v2
+        with:
+          lfs: false
+          submodules: true
 
-    - name: Prereqs
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        apt-get update
-        apt-get install -y git
-        git clone --depth 1 "https://token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .
-      shell: bash
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
 
-    - name: Execute script to build our documentation and update pages
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: "docs/buildDocs.sh"
-      shell: bash
+      - name: Install package
+        run: |
+          pip install .[dev]
+
+      - name: Build docs
+        run: |
+          cd docs && sphinx-apidoc -f -o ./source ../pfspinup -H Modules && make html && touch build/html/.nojekyll
+
+      - name: Update gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: "docs/buildDocs.sh"
+        shell: bash
