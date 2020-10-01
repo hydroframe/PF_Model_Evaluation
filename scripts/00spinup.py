@@ -2,7 +2,7 @@ import os.path
 from glob import glob
 import numpy as np
 from pfspinup import pfio
-from pfspinup.common import surface_storage, subsurface_storage, water_table_depth
+from pfspinup.common import calculate_surface_storage, calculate_subsurface_storage, calculate_water_table_depth
 from pfspinup.pfmetadata import PFMetadata
 
 RUN_DIR = '../pfspinup/data/example_run'
@@ -33,13 +33,9 @@ if __name__ == '__main__':
     thickness = metadata.nz_list('dzScale') * metadata['ComputationalGrid.DZ']
 
     nt = len(pressure_files)
-
-    TotSubstor = np.array([]).reshape(0, nx, ny)
-    TotSurfstor = np.array([]).reshape(0, nx, ny)
-    TotWtd = np.array([]).reshape(0, nx, ny)
-    SubStorMean = [0] * nt
-    SurfStorMean = [0] * nt
-    wtd_mean = [0] * nt
+    subsurface_storage = np.zeros((nt, nx, ny))
+    surface_storage = np.zeros((nt, nx, ny))
+    wtd = np.zeros((nt, nx, ny))
 
     for i, (pressure_file, saturation_file) in enumerate(zip(pressure_files, saturation_files)):
 
@@ -47,21 +43,18 @@ if __name__ == '__main__':
         saturation = pfio.pfread(saturation_file)
 
         # sub-surface storage
-        SubStor = subsurface_storage(pressure, saturation, porosity, specific_storage, dx, dy, thickness)
-        SubStor[SubStor == np.min(SubStor)] = np.nan
-        TotSubstor = np.vstack([TotSubstor, SubStor[np.newaxis, ...]])
-        SubStorMean[i] = np.nanmean(SubStor)
+        subsurface_storage_i = calculate_subsurface_storage(pressure, saturation, porosity, specific_storage, dx, dy, thickness)
+        subsurface_storage_i[subsurface_storage_i == np.min(subsurface_storage_i)] = np.nan
+        subsurface_storage[i, ...] = subsurface_storage_i
 
         # surface storage
-        SurfStor = surface_storage(pressure, dx, dy)
-        SurfStor[SurfStor == np.min(SurfStor)] = np.nan
-        TotSurfstor = np.vstack([TotSurfstor, SurfStor[np.newaxis, ...]])
-        SurfStorMean[i] = np.nanmean(SurfStor)
+        surface_storage_i = calculate_surface_storage(pressure, dx, dy)
+        surface_storage_i[surface_storage_i == np.min(surface_storage_i)] = np.nan
+        surface_storage[i, ...] = surface_storage_i
 
         # water table depth
-        wtd = water_table_depth(pressure, saturation, thickness)
-        TotWtd = np.vstack([TotWtd, wtd[np.newaxis, ...]])
-        wtd_mean[i] = np.nanmean(wtd)
+        wtd_i = calculate_water_table_depth(pressure, saturation, thickness)
+        wtd[i, ...] = wtd_i
 
     # read the recharge file
     # this step is used for checking the percentage of subsurface storage relative to the recharge
@@ -72,11 +65,9 @@ if __name__ == '__main__':
     # recharge = recharge rate at top layer * dx * dy * top layer thickness *
     #            the interval between two consecutive outputs (at steady state)
     # TODO: Get the 100.0 from the metadata file + index difference in successive files
-    rech = recharge_layers[-1, :, :] * dx * dy * thickness[-1] * 100.0
-    pctchange = [0] * (nt-1)
-    Totpctchg_grid = np.array([]).reshape(0, nx, ny)
+    recharge = recharge_layers[-1, :, :] * dx * dy * thickness[-1] * 100.0
+    percent_change = np.zeros((nt-1, nx, ny))
     for i in range(nt-1):
-        SubstorChange = TotSubstor[(i+1), :, :] - TotSubstor[i, :, :]
-        pctchange[i] = np.nansum(abs(SubstorChange)) / np.nansum(rech) * 100
-        pctchange_grid = abs(SubstorChange) / rech * 100
-        Totpctchg_grid = np.vstack([Totpctchg_grid, pctchange_grid[np.newaxis, ...]])
+        substorage_change = subsurface_storage[i+1, :, :] - subsurface_storage[i, :, :]
+        percent_change_i = abs(substorage_change) / recharge * 100
+        percent_change[i, ...] = percent_change_i

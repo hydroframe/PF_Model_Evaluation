@@ -1,7 +1,7 @@
 import os.path
 import numpy as np
 import pfspinup.pfio as pfio
-from pfspinup.common import surface_storage
+from pfspinup.common import calculate_surface_storage
 
 
 def test_surface_storage(run_dir, run_name, test_data_dir):
@@ -11,5 +11,5 @@ def test_surface_storage(run_dir, run_name, test_data_dir):
 
     dx = dy = 1000
 
-    storage = surface_storage(pressure, dx, dy)
+    storage = calculate_surface_storage(pressure, dx, dy)
     assert np.allclose(storage, np.load(f'{test_data_dir}/surface00.npy'))
