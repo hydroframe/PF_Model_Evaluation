@@ -3,7 +3,7 @@
 # PF Model Evaluation
 This is a codebase *under active development*, for evaluating Parflow simulations and spinup.
 
-**For full documentation see [the docs](#coming-soon).**
+**For full documentation see [the docs](https://hydroframe.github.io/PF_Model_Evaluation/).**
 
 ## Installation
 
