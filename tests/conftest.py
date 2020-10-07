@@ -4,7 +4,8 @@ import pfspinup
 from pfspinup.pfmetadata import PFMetadata
 
 RUN_DIR = os.path.join(os.path.dirname(pfspinup.__file__), 'data/example_run')
-RUN_NAME = 'icom_spinup1'
+RUN_NAME = 'LW_CLM_Ex4'
+
 TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
 

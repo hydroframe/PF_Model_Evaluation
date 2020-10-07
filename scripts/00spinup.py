@@ -1,73 +1,99 @@
-import os.path
-from glob import glob
 import numpy as np
 from pfspinup import pfio
-from pfspinup.common import calculate_surface_storage, calculate_subsurface_storage, calculate_water_table_depth
+from pfspinup.common import calculate_surface_storage, calculate_subsurface_storage, calculate_water_table_depth, \
+    calculate_evapotranspiration, calculate_overland_flow
 from pfspinup.pfmetadata import PFMetadata
 
 RUN_DIR = '../pfspinup/data/example_run'
-RUN_NAME = 'icom_spinup1'
+RUN_NAME = 'LW_CLM_Ex4'
 
+metadata = PFMetadata(f'{RUN_DIR}/{RUN_NAME}.out.pfmetadata')
 
-if __name__ == '__main__':
+# ------------------------------------------
+# Get relevant information from the metadata
+# ------------------------------------------
 
-    metadata = PFMetadata(f'{RUN_DIR}/{RUN_NAME}.out.pfmetadata')
+# Resolution
+dx = metadata['ComputationalGrid.DX']
+dy = metadata['ComputationalGrid.DY']
+# Thickness of each layer, bottom to top
+dz = metadata.dz()
 
-    pressure_files = sorted(glob(f'{RUN_DIR}/*.out.press.*.pfb'))
-    saturation_files = sorted(glob(f'{RUN_DIR}/*.out.satur.*.pfb'))
+# Extent
+nx = metadata['ComputationalGrid.NX']
+ny = metadata['ComputationalGrid.NY']
+nz = metadata['ComputationalGrid.NZ']
 
-    porosity_file = metadata.config['inputs']['porosity']['data'][0]['file']
-    porosity = pfio.pfread(os.path.join(RUN_DIR, porosity_file))
-    specific_storage_file = metadata.config['inputs']['specific storage']['data'][0]['file']
-    specific_storage = pfio.pfread(os.path.join(RUN_DIR, specific_storage_file))
+# ------------------------------------------
+# Get numpy arrays from metadata
+# ------------------------------------------
 
-    # pixel size
-    dx = metadata['ComputationalGrid.DX']
-    dy = metadata['ComputationalGrid.DY']
+# ------------------------------------------
+# Time-invariant values
+# ------------------------------------------
+porosity = metadata.input_data('porosity')
+specific_storage = metadata.input_data('specific storage')
+mask = metadata.input_data('mask')
+# Note that only time-invariant ET flux values are supported for now
+et_flux_values = metadata.et_flux()  # shape (nz, nx, ny) - units 1/T.
 
-    nx = metadata['ComputationalGrid.NX']
-    ny = metadata['ComputationalGrid.NY']
-    nz = metadata['ComputationalGrid.NZ']
+slopex = metadata.slope_x()  # shape (nx, ny)
+slopey = metadata.slope_y()  # shape (nx, ny)
+mannings = metadata.get_single_domain_value('Mannings')  # scalar value
 
-    # Thickness of each layer, bottom to top
-    thickness = metadata.nz_list('dzScale') * metadata['ComputationalGrid.DZ']
+# ------------------------------------------
+# Time-variant values
+# ------------------------------------------
+# Get as many pressure files as are available, while also getting their corresponding index IDs and timing info
+pressure_files, index_list, timing_list = metadata.output_files('pressure', ignore_missing=True)
 
-    nt = len(pressure_files)
-    subsurface_storage = np.zeros((nt, nx, ny))
-    surface_storage = np.zeros((nt, nx, ny))
-    wtd = np.zeros((nt, nx, ny))
+# By explicitly passing in the index_list in the call below, we insist that all saturation files corresponding
+# to the pressure files be present.
+saturation_files, _, _ = metadata.output_files('saturation', index_list=index_list)
+# no. of time steps
+nt = len(index_list)
 
-    for i, (pressure_file, saturation_file) in enumerate(zip(pressure_files, saturation_files)):
+# ------------------------------------------
+# Initialization
+# ------------------------------------------
+# Arrays for total values (across all layers), with time as the first axis
+subsurface_storage = np.zeros((nt,))
+surface_storage = np.zeros((nt,))
+wtd = np.zeros((nt, nx, ny))
+et = np.zeros((nt,))
+overland_flow = np.zeros((nt, nx, ny))
 
-        pressure = pfio.pfread(pressure_file)
-        saturation = pfio.pfread(saturation_file)
+# ------------------------------------------
+# Loop through time steps
+# ------------------------------------------
+for i, (pressure_file, saturation_file) in enumerate(zip(pressure_files, saturation_files)):
+    pressure = pfio.pfread(pressure_file)
+    saturation = pfio.pfread(saturation_file)
 
-        # sub-surface storage
-        subsurface_storage_i = calculate_subsurface_storage(pressure, saturation, porosity, specific_storage, dx, dy, thickness)
-        subsurface_storage_i[subsurface_storage_i == np.min(subsurface_storage_i)] = np.nan
-        subsurface_storage[i, ...] = subsurface_storage_i
+    # We set pressure/saturation values outside our mask to np.nan to indicate missing values.
+    # Individual functions that deal with these arrays are written to handle np.nan values properly.
+    pressure[mask == 0] = np.nan
+    saturation[mask == 0] = np.nan
 
-        # surface storage
-        surface_storage_i = calculate_surface_storage(pressure, dx, dy)
-        surface_storage_i[surface_storage_i == np.min(surface_storage_i)] = np.nan
-        surface_storage[i, ...] = surface_storage_i
+    # total subsurface storage for this time step is the summation of substorage surface across all x/y/z slices
+    subsurface_storage[i, ...] = np.sum(
+        calculate_subsurface_storage(mask, porosity, pressure, saturation, specific_storage, dx, dy, dz),
+        axis=(0, 1, 2)
+    )
 
-        # water table depth
-        wtd_i = calculate_water_table_depth(pressure, saturation, thickness)
-        wtd[i, ...] = wtd_i
+    # total surface storage for this time step is the summation of substorage surface across all x/y slices
+    surface_storage[i, ...] = np.sum(
+        calculate_surface_storage(mask, pressure, dx, dy),
+        axis=(0, 1)
+    )
 
-    # read the recharge file
-    # this step is used for checking the percentage of subsurface storage relative to the recharge
-    # which is useful for spinning up checking.
-    pme_file = metadata['Solver.EvapTrans.FileName']
-    recharge_layers = pfio.pfread(os.path.join(RUN_DIR, pme_file))
+    wtd[i, ...] = calculate_water_table_depth(pressure, saturation, dz)
 
-    # recharge = recharge rate at top layer * dx * dy * top layer thickness *
-    #            the interval between two consecutive outputs (at steady state)
-    # TODO: Get the 100.0 from the metadata file + index difference in successive files
-    recharge = recharge_layers[-1, :, :] * dx * dy * thickness[-1] * 100.0
-    percent_change = np.zeros((nt-1, nx, ny))
-    for i in range(nt-1):
-        substorage_change = subsurface_storage[i+1, :, :] - subsurface_storage[i, :, :]
-        percent_change_i = abs(substorage_change) / recharge * 100
-        percent_change[i, ...] = percent_change_i
+    if et_flux_values is not None:
+        # total ET for this time step is the summation of ET values across all x/y/z slices
+        et[i, ...] = np.sum(
+            calculate_evapotranspiration(mask, et_flux_values, dx, dy, dz),
+            axis=(0, 1, 2)
+        )
+
+    overland_flow[i, ...] = calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy)

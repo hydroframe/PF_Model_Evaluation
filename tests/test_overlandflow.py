@@ -1,19 +1,23 @@
 import numpy as np
 import pfspinup.pfio as pfio
-from pfspinup.common import calculate_water_table_depth
+from pfspinup.common import calculate_overland_flow
 
 
 def test_water_table_depth(metadata, test_data_dir):
-    dz = metadata.dz()
+    dx = metadata['ComputationalGrid.DX']
+    dy = metadata['ComputationalGrid.DY']
     nx = metadata['ComputationalGrid.NX']
     ny = metadata['ComputationalGrid.NY']
     mask = metadata.input_data('mask')
+    slopex = metadata.slope_x()
+    slopey = metadata.slope_y()
+    mannings = metadata.get_single_domain_value('Mannings')
 
     pressure_files, index_list, timing_list = metadata.output_files('pressure', ignore_missing=True)
     saturation_files, _, _ = metadata.output_files('saturation', index_list=index_list)
     nt = len(index_list)
 
-    wtd = np.zeros((nt, nx, ny))
+    overland_flow = np.zeros((nt, nx, ny))
     for i, (pressure_file, saturation_file) in enumerate(zip(pressure_files, saturation_files)):
         pressure = pfio.pfread(pressure_file)
         saturation = pfio.pfread(saturation_file)
@@ -21,6 +25,6 @@ def test_water_table_depth(metadata, test_data_dir):
         pressure[mask == 0] = np.nan
         saturation[mask == 0] = np.nan
 
-        wtd[i, ...] = calculate_water_table_depth(pressure, saturation, dz)
+        overland_flow[i, ...] = calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy)
 
-    assert np.allclose(wtd, np.load(f'{test_data_dir}/wtd.npy'), equal_nan=True)
+    assert np.allclose(overland_flow, np.load(f'{test_data_dir}/overland_flow.npy'), equal_nan=True)

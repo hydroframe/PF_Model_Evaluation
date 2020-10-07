@@ -1,3 +1,4 @@
+import os.path
 import numpy as np
 from parflowio.pyParflowio import PFData
 
@@ -8,9 +9,12 @@ def pfread(pfbfile):
     :param pfbfile: path to pfb file
     :return: An ndarray of ndim=3
 
-    TODO: parflowio seems to read arrays such that the rows (i.e. axis=1) are reversed w.r.t what pfio gives us
+    TODO: parflowio seems to read arrays such that axis=1 are reversed w.r.t what pfio gives us
     Hence the np.flip
     """
+    if not os.path.exists(pfbfile):
+        raise RuntimeError(f'{pfbfile} not found')
+
     pfb_data = PFData(pfbfile)
     pfb_data.loadHeader()
     pfb_data.loadData()

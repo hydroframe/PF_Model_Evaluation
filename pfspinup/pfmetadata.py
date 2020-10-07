@@ -1,6 +1,8 @@
 import json
 import os.path
+from pathlib import Path
 import numpy as np
+from pfspinup import pfio
 
 
 class PFMetadata:
@@ -35,15 +37,63 @@ class PFMetadata:
             raise RuntimeError(f'File {filename} not found')
 
         self.filename = filename
+        self.folder = os.path.abspath(os.path.dirname(filename))
         self.config = json.loads(open(filename, 'r').read())
 
     def __getitem__(self, item):
         value = self.config['inputs']['configuration']['data'][item]
         return self._parse_value(value)
 
-    def get_absolute_path(self, filename):
-        # Return the absolute path of the file represented by filename
-        return os.path.join(os.path.dirname(self.filename), filename)
+    def _get_absolute_path(self, filename):
+        return os.path.join(self.folder, filename)
+
+    def pfb_data(self, filename):
+        return pfio.pfread(self._get_absolute_path(filename))
+
+    def input_data(self, which):
+        input = self.config['inputs'][which]
+        assert input['type'] == 'pfb', 'Only pfb input data supported for now'
+        assert len(input['data']) == 1, 'Only a single data entry supported for now'
+        pfb_file = input['data'][0]['file']
+        return self.pfb_data(pfb_file)
+
+    def output_files(self, which, folder=None, index_list=None, ignore_missing=False):
+        """
+        Return full paths to *.out.*.nnnnn.pfb files, along with other useful information
+        :param which: property that saved as time-series pfb files, typically 'pressure' or 'saturation'
+        :param folder: Location of time-series pfb files. If None, determined automatically.
+        :param index_list: An iterable of index values that the caller is interested in.
+            If None, all index values are returned
+        :param ignore_missing: Whether to ignore any missing .pfb files or raise an error.
+        :return: A 3-tuple of values:
+            files: A list of full paths to .pfb files
+            index_list: A list of time-index values of files that were returned
+            timing_list: A list of timing information of files that were returned
+        """
+        output = self.config['outputs'][which]
+        assert output['type'] == 'pfb', 'Only pfb output data supported for now'
+        assert len(output['data']) == 1, 'Only a single data entry supported for now'
+
+        file_series = output['data'][0]['file-series']
+        start, end = output['data'][0]['time-range']
+        folder = folder or self.folder
+        if index_list is None:
+            index_list = np.arange(start, end+1)
+        else:
+            index_list = np.array(index_list)
+
+        files = np.array([os.path.join(folder, file_series % i) for i in index_list])
+        files_found = np.vectorize(os.path.exists)(files)
+        if not ignore_missing and not all(files_found):
+            raise RuntimeError('Some pfb files were not found. Specify ignore_missing=True to ignore these.')
+
+        dump_interval = self['TimingInfo.DumpInterval']
+        dt = self['TimingInfo.BaseUnit']
+        start_count = self['TimingInfo.StartCount']
+        start_time = self['TimingInfo.StartTime']
+        out_times = np.array([(i-start_count) * dt * dump_interval + start_time for i in index_list])
+
+        return files[files_found], index_list[files_found], out_times[files_found]
 
     def nz_list(self, which):
         assert self[f'{which}.Type'] == 'nzList'
@@ -61,14 +111,6 @@ class PFMetadata:
             if self[f'GeomInput.{geom}.InputType'] == typ:
                 return geom
 
-    def permeability(self):
-        return self.get_geom_values('Perm', names_field='Names')
-
-    def porosity(self):
-        # TODO: Why does Porosity follow 'Geom.Porosity.GeomNames'
-        # while permeability follows 'Geom.Perm.Names'
-        return self.get_geom_values('Porosity', names_field='GeomNames')
-
     def phase_geom_values(self, phase, attribute_name):
         return {name: self[f'Geom.{name}.{phase}.{attribute_name}'] for name in self[f'Phase.{phase}.GeomNames']}
 
@@ -85,27 +127,9 @@ class PFMetadata:
                 d[name] = self[f'Geom.{name}.{which}.TensorVal{axis}']
         return d
 
-    def get_values_by_geom(self, which, is_reversed=False):
-        assert self[f'{which}.Type'] == 'Constant'
-
-        d = {}
-        names = self[f'{which}.GeomNames']
-        if isinstance(names, str):  # singleton
-            if is_reversed:
-                d[names] = self[f'{which}.Geom.{names}.Value']
-            else:
-                d[names] = self[f'Geom.{names}.{which}.Value']
-        else:
-            for name in names:
-                if is_reversed:
-                    d[name] = self[f'{which}.Geom.{name}.Value']
-                else:
-                    d[names] = self[f'Geom.{name}.{which}.Value']
-        return d
-
     def indicator_file(self):
         g = self.get_geom_by_type('IndicatorField')
-        return self.get_absolute_path(self[f'Geom.{g}.FileName'])
+        return self._get_absolute_path(self[f'Geom.{g}.FileName'])
 
     def indicator_geom_values(self):
         g = self.get_geom_by_type('IndicatorField')
@@ -114,19 +138,38 @@ class PFMetadata:
             d[name] = self[f'GeomInput.{name}.Value']
         return d
 
-    def icpressure_refpatch(self):
-        g = self['ICPressure.GeomNames']
-        assert type(g) == str, 'Multiple ICPressure.GeomNames found'
-        return self[f'Geom.{g}.ICPressure.RefPatch']
+    def get_single_domain_value(self, which):
+        g = self[f'{which}.GeomNames']
+        assert type(g) == str, f'Multiple {which}.GeomNames found'
+        typ = self[f'{which}.Type']
+        if typ == 'Constant':
+            try:
+                return self[f'Geom.{g}.{which}.Value']
+            except KeyError:
+                # Some properties (e.g. Mannings have their geom keys reversed)
+                return self[f'{which}.Geom.{g}.Value']
+        elif typ == 'PFBFile':
+            return self.pfb_data(self[f'Geom.{g}.{which}.FileName'])
+        elif typ == 'nzList':
+            return self.nz_list(which)
+        return self[f'Geom.{g}.{which}.Value']
 
-    def icpressure_filename(self):
-        g = self['ICPressure.GeomNames']
-        assert type(g) == str, 'Multiple ICPressure.GeomNames found'
-        filename = self[f'Geom.{g}.ICPressure.FileName']
-        assert not filename.startswith('$'), 'Not supported yet'
-        return self.get_absolute_path(filename)
+    def dz(self):
+        if self['Solver.Nonlinear.VariableDz']:
+            dz_scale = self.get_single_domain_value('dzScale')
+        else:
+            dz_scale = np.ones((self['ComputationalGrid.NZ'],))
+        dz_values = dz_scale * self['ComputationalGrid.DZ']
+        return dz_values
 
-    def icpressure_value(self):
-        g = self['ICPressure.GeomNames']
-        assert type(g) == str, 'Multiple ICPressure.GeomNames found'
-        return self[f'Geom.{g}.ICPressure.Value']
+    def et_flux(self):
+        if self['Solver.EvapTransFile']:
+            return self.pfb_data(self['Solver.EvapTrans.FileName'])
+        elif self['Solver.EvapTransFileTransient']:
+            raise NotImplementedError('coming soon..')
+
+    def slope_x(self):
+        return self.pfb_data(self['TopoSlopesX.FileName']).squeeze(axis=0)
+
+    def slope_y(self):
+        return self.pfb_data(self['TopoSlopesY.FileName']).squeeze(axis=0)
