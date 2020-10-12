@@ -40,6 +40,10 @@ class PFMetadata:
         self.folder = os.path.abspath(os.path.dirname(filename))
         self.config = json.loads(open(filename, 'r').read())
 
+        # We initialize the 'mask' attribute (an nz-by-nx-by-ny ndarray) early on,
+        # since this is used in quite a few places later.
+        self.mask = self.input_data('mask', apply_mask=False)
+
     def __getitem__(self, item):
         value = self.config['inputs']['configuration']['data'][item]
         return self._parse_value(value)
@@ -47,15 +51,18 @@ class PFMetadata:
     def _get_absolute_path(self, filename):
         return os.path.join(self.folder, filename)
 
-    def pfb_data(self, filename):
-        return pfio.pfread(self._get_absolute_path(filename))
+    def pfb_data(self, filename, apply_mask=False):
+        data = pfio.pfread(self._get_absolute_path(filename))
+        if apply_mask:
+            data[self.mask == 0] = np.nan
+        return data
 
-    def input_data(self, which):
+    def input_data(self, which, apply_mask=True):
         input = self.config['inputs'][which]
         assert input['type'] == 'pfb', 'Only pfb input data supported for now'
         assert len(input['data']) == 1, 'Only a single data entry supported for now'
         pfb_file = input['data'][0]['file']
-        return self.pfb_data(pfb_file)
+        return self.pfb_data(pfb_file, apply_mask=apply_mask)
 
     def output_files(self, which, folder=None, index_list=None, ignore_missing=False):
         """
