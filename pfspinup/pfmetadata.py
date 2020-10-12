@@ -51,7 +51,7 @@ class PFMetadata:
     def _get_absolute_path(self, filename):
         return os.path.join(self.folder, filename)
 
-    def pfb_data(self, filename, apply_mask=False):
+    def pfb_data(self, filename, apply_mask=True):
         data = pfio.pfread(self._get_absolute_path(filename))
         if apply_mask:
             data[self.mask == 0] = np.nan
@@ -176,7 +176,7 @@ class PFMetadata:
             raise NotImplementedError('coming soon..')
 
     def slope_x(self):
-        return self.pfb_data(self['TopoSlopesX.FileName']).squeeze(axis=0)
+        return self.pfb_data(self['TopoSlopesX.FileName'], apply_mask=False).squeeze(axis=0)
 
     def slope_y(self):
-        return self.pfb_data(self['TopoSlopesY.FileName']).squeeze(axis=0)
+        return self.pfb_data(self['TopoSlopesY.FileName'], apply_mask=False).squeeze(axis=0)

@@ -72,8 +72,8 @@ overland_flow = np.zeros((nt, nx, ny))
 # Loop through time steps
 # ------------------------------------------
 for i, (pressure_file, saturation_file) in enumerate(zip(pressure_files, saturation_files)):
-    pressure = pfio.pfread(pressure_file)
-    saturation = pfio.pfread(saturation_file)
+    pressure = metadata.pfb_data(pressure_file)
+    saturation = metadata.pfb_data(saturation_file)
 
     # total subsurface storage for this time step is the summation of substorage surface across all x/y/z slices
     subsurface_storage[i, ...] = np.sum(
