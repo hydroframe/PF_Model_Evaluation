@@ -1,5 +1,4 @@
 import numpy as np
-from pfspinup import pfio
 from pfspinup.common import calculate_surface_storage, calculate_subsurface_storage, calculate_water_table_depth, \
     calculate_evapotranspiration, calculate_overland_flow
 from pfspinup.pfmetadata import PFMetadata
@@ -35,10 +34,10 @@ porosity = metadata.input_data('porosity')
 specific_storage = metadata.input_data('specific storage')
 mask = metadata.input_data('mask')
 # Note that only time-invariant ET flux values are supported for now
-et_flux_values = metadata.et_flux()  # shape (nz, nx, ny) - units 1/T.
+et_flux_values = metadata.et_flux()  # shape (nz, ny, nx) - units 1/T.
 
-slopex = metadata.slope_x()  # shape (nx, ny)
-slopey = metadata.slope_y()  # shape (nx, ny)
+slopex = metadata.slope_x()  # shape (ny, nx)
+slopey = metadata.slope_y()  # shape (ny, nx)
 mannings = metadata.get_single_domain_value('Mannings')  # scalar value
 
 # ------------------------------------------
@@ -64,9 +63,9 @@ nt = len(index_list)
 # Arrays for total values (across all layers), with time as the first axis
 subsurface_storage = np.zeros(nt)
 surface_storage = np.zeros(nt)
-wtd = np.zeros((nt, nx, ny))
+wtd = np.zeros((nt, ny, nx))
 et = np.zeros(nt)
-overland_flow = np.zeros((nt, nx, ny))
+overland_flow = np.zeros((nt, ny, nx))
 
 # ------------------------------------------
 # Loop through time steps

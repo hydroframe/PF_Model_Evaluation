@@ -1,6 +1,5 @@
 import json
 import os.path
-from pathlib import Path
 import numpy as np
 from pfspinup import pfio
 
@@ -40,7 +39,7 @@ class PFMetadata:
         self.folder = os.path.abspath(os.path.dirname(filename))
         self.config = json.loads(open(filename, 'r').read())
 
-        # We initialize the 'mask' attribute (an nz-by-nx-by-ny ndarray) early on,
+        # We initialize the 'mask' attribute (an nz-by-ny-by-nx ndarray) early on,
         # since this is used in quite a few places later.
         self.mask = self.input_data('mask', apply_mask=False)
 
