@@ -1,6 +1,5 @@
 import json
 import os.path
-from pathlib import Path
 import numpy as np
 from pfspinup import pfio
 
@@ -40,6 +39,10 @@ class PFMetadata:
         self.folder = os.path.abspath(os.path.dirname(filename))
         self.config = json.loads(open(filename, 'r').read())
 
+        # We initialize the 'mask' attribute (an nz-by-ny-by-nx ndarray) early on,
+        # since this is used in quite a few places later.
+        self.mask = self.input_data('mask', apply_mask=False)
+
     def __getitem__(self, item):
         value = self.config['inputs']['configuration']['data'][item]
         return self._parse_value(value)
@@ -47,15 +50,18 @@ class PFMetadata:
     def _get_absolute_path(self, filename):
         return os.path.join(self.folder, filename)
 
-    def pfb_data(self, filename):
-        return pfio.pfread(self._get_absolute_path(filename))
+    def pfb_data(self, filename, apply_mask=True):
+        data = pfio.pfread(self._get_absolute_path(filename))
+        if apply_mask:
+            data[self.mask == 0] = np.nan
+        return data
 
-    def input_data(self, which):
+    def input_data(self, which, apply_mask=True):
         input = self.config['inputs'][which]
         assert input['type'] == 'pfb', 'Only pfb input data supported for now'
         assert len(input['data']) == 1, 'Only a single data entry supported for now'
         pfb_file = input['data'][0]['file']
-        return self.pfb_data(pfb_file)
+        return self.pfb_data(pfb_file, apply_mask=apply_mask)
 
     def output_files(self, which, folder=None, index_list=None, ignore_missing=False):
         """
@@ -169,7 +175,7 @@ class PFMetadata:
             raise NotImplementedError('coming soon..')
 
     def slope_x(self):
-        return self.pfb_data(self['TopoSlopesX.FileName']).squeeze(axis=0)
+        return self.pfb_data(self['TopoSlopesX.FileName'], apply_mask=False).squeeze(axis=0)
 
     def slope_y(self):
-        return self.pfb_data(self['TopoSlopesY.FileName']).squeeze(axis=0)
+        return self.pfb_data(self['TopoSlopesY.FileName'], apply_mask=False).squeeze(axis=0)

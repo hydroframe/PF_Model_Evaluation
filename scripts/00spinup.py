@@ -1,5 +1,4 @@
 import numpy as np
-from pfspinup import pfio
 from pfspinup.common import calculate_surface_storage, calculate_subsurface_storage, calculate_water_table_depth, \
     calculate_evapotranspiration, calculate_overland_flow
 from pfspinup.pfmetadata import PFMetadata
@@ -35,10 +34,10 @@ porosity = metadata.input_data('porosity')
 specific_storage = metadata.input_data('specific storage')
 mask = metadata.input_data('mask')
 # Note that only time-invariant ET flux values are supported for now
-et_flux_values = metadata.et_flux()  # shape (nz, nx, ny) - units 1/T.
+et_flux_values = metadata.et_flux()  # shape (nz, ny, nx) - units 1/T.
 
-slopex = metadata.slope_x()  # shape (nx, ny)
-slopey = metadata.slope_y()  # shape (nx, ny)
+slopex = metadata.slope_x()  # shape (ny, nx)
+slopey = metadata.slope_y()  # shape (ny, nx)
 mannings = metadata.get_single_domain_value('Mannings')  # scalar value
 
 # ------------------------------------------
@@ -46,9 +45,14 @@ mannings = metadata.get_single_domain_value('Mannings')  # scalar value
 # ------------------------------------------
 # Get as many pressure files as are available, while also getting their corresponding index IDs and timing info
 pressure_files, index_list, timing_list = metadata.output_files('pressure', ignore_missing=True)
+# We're typically interested in the first value of the returned 3-tuple.
+# Note that if we were interested in specific time steps, we can specify these as the `index_list` parameter.
+# examples:
+#   files, _, _ = metadata.output_files('pressure', index_list=range(0, 31, 10))
+#   files, _, _ = metadata.output_files('pressure', index_list=[10, 30])
 
-# By explicitly passing in the index_list in the call below, we insist that all saturation files corresponding
-# to the pressure files be present.
+# By explicitly passing in the index_list that we obtained in the call below,
+# we insist that all saturation files corresponding to the pressure files be present.
 saturation_files, _, _ = metadata.output_files('saturation', index_list=index_list)
 # no. of time steps
 nt = len(index_list)
@@ -57,23 +61,18 @@ nt = len(index_list)
 # Initialization
 # ------------------------------------------
 # Arrays for total values (across all layers), with time as the first axis
-subsurface_storage = np.zeros((nt,))
-surface_storage = np.zeros((nt,))
-wtd = np.zeros((nt, nx, ny))
-et = np.zeros((nt,))
-overland_flow = np.zeros((nt, nx, ny))
+subsurface_storage = np.zeros(nt)
+surface_storage = np.zeros(nt)
+wtd = np.zeros((nt, ny, nx))
+et = np.zeros(nt)
+overland_flow = np.zeros((nt, ny, nx))
 
 # ------------------------------------------
 # Loop through time steps
 # ------------------------------------------
 for i, (pressure_file, saturation_file) in enumerate(zip(pressure_files, saturation_files)):
-    pressure = pfio.pfread(pressure_file)
-    saturation = pfio.pfread(saturation_file)
-
-    # We set pressure/saturation values outside our mask to np.nan to indicate missing values.
-    # Individual functions that deal with these arrays are written to handle np.nan values properly.
-    pressure[mask == 0] = np.nan
-    saturation[mask == 0] = np.nan
+    pressure = metadata.pfb_data(pressure_file)
+    saturation = metadata.pfb_data(saturation_file)
 
     # total subsurface storage for this time step is the summation of substorage surface across all x/y/z slices
     subsurface_storage[i, ...] = np.sum(
