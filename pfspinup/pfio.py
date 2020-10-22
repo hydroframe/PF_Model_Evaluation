@@ -7,9 +7,6 @@ def pfread(pfbfile):
     Read a pfb file and return data as an ndarray
     :param pfbfile: path to pfb file
     :return: An ndarray of ndim=3, with shape (nz, ny, nx)
-
-    TODO: parflowio seems to read arrays such that axis=1 are reversed w.r.t what pfio gives us
-    Hence the np.flip
     """
     if not os.path.exists(pfbfile):
         raise RuntimeError(f'{pfbfile} not found')

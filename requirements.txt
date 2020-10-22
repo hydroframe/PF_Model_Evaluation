@@ -4,6 +4,7 @@ numpy
 numpydoc
 pandas
 parflowio
+pftools
 pytest
 sphinx
 sphinxcontrib-bibtex

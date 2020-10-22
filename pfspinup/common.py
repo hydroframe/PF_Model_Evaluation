@@ -100,7 +100,7 @@ def calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy):
     """
     Calculate overland flow
 
-    This function implements the 'OverlandFlow' algorithm (as opposed to the 'OverlandKinematic' algorithm)
+    This function implements the 'OverlandFlow' algorithm for overland flow.
 
     :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
     :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
@@ -156,6 +156,87 @@ def calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy):
     outflow = np.maximum(0, qeast[:, 1:]) + np.maximum(0, -qeast[:, :-1]) + \
               np.maximum(0, qnorth[1:, :]) + np.maximum(0, -qnorth[:-1, :])
 
+    # Set the outflow values outside the mask to 0
+    outflow[mask[-1, ...] == 0] = 0
+
     return outflow
 
 
+def calculate_overland_flow_kinematic(mask, pressure, slopex, slopey, mannings, dx, dy, epsilon=1e-5):
+    """
+    Calculate overland flow
+
+    This function implements the 'OverlandKinematic' algorithm for overland flow.
+
+    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
+    :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
+    :param slopex: ny-by-nx
+    :param slopey: ny-by-nx
+    :param mannings: scalar value
+    :param dx: Length of a grid element in the x direction
+    :param dy: Length of a grid element in the y direction
+    :param epsilon: Minimum slope magnitude for solver.
+        This is set using the Solver.OverlandKinematic.Epsilon key in Parflow.
+    :return: A ny-by-nx ndarray of overland flow values
+    """
+    pressure_top = pressure[-1, ...].copy()
+    pressure_top = np.nan_to_num(pressure_top)
+    pressure_top[pressure_top < 0] = 0
+
+    # We're only interested in the surface mask, as an ny-by-nx array
+    mask = mask[-1, ...]
+
+    # Find all patterns of the form
+    #  -------
+    # | 0 | 1 |
+    #  -------
+    # and copy the slopex values from the '1' cells to the corresponding '0' cells
+    _x, _y = np.where(np.diff(mask, axis=1, append=0) == 1)
+    slopex[(_x, _y)] = slopex[(_x, _y + 1)]
+
+    # Find all patterns of the form
+    #  ---
+    # | 0 |
+    # | 1 |
+    #  ---
+    # and copy the slopey values from the '1' cells to the corresponding '0' cells
+    _x, _y = np.where(np.diff(mask, axis=0, append=0) == 1)
+    slopey[(_x, _y)] = slopey[(_x + 1, _y)]
+
+    slope = np.maximum(epsilon, np.hypot(slopex, slopey))
+
+    # Upwind pressure - this is for the north and east face of all cells
+    # The slopes are calculated across these boundaries so the upper x/y boundaries are included in these
+    # calculations. The lower x/y boundaries are added further down as q_x0/q_y0
+    pressure_top_padded = np.pad(pressure_top[:, 1:], ((0, 0,), (0, 1)))  # pad right
+    pupwindx = np.maximum(0, np.sign(slopex) * pressure_top_padded) + np.maximum(0, -np.sign(slopex) * pressure_top)
+    pressure_top_padded = np.pad(pressure_top[1:, :], ((0, 1,), (0, 0)))  # pad bottom
+    pupwindy = np.maximum(0, np.sign(slopey) * pressure_top_padded) + np.maximum(0, -np.sign(slopey) * pressure_top)
+
+    flux_factor = np.sqrt(slope) * mannings
+    # Flux across the x/y directions
+    q_x = -slopex / flux_factor * pupwindx ** (5 / 3) * dy
+    q_y = -slopey / flux_factor * pupwindy ** (5 / 3) * dx
+
+    # Fix the lower x boundary
+    # Use the slopes of the first column
+    q_x0 = -slopex[:, 0] / flux_factor[:, 0] * np.maximum(0, np.sign(slopex[:, 0]) * pressure_top[:, 0]) ** (5 / 3) * dy
+    qeast = np.hstack([q_x0[:, np.newaxis], q_x])
+
+    # Fix the lower y boundary
+    # Use the slopes of the first row
+    q_y0 = -slopey[0, :] / flux_factor[0, :] * np.maximum(0, np.sign(slopey[0, :]) * pressure_top[0, :]) ** (5 / 3) * dx
+    qnorth = np.vstack([q_y0, q_y])
+
+    # ---------------
+    # Total Outflow
+    # ---------------
+
+    # Outflow is a positive qeast[i,j] or qnorth[i,j] or a negative qeast[i,j-1], qnorth[i-1,j]
+    outflow = np.maximum(0, qeast[:, 1:]) + np.maximum(0, -qeast[:, :-1]) + \
+              np.maximum(0, qnorth[1:, :]) + np.maximum(0, -qnorth[:-1, :])
+
+    # Set the outflow values outside the mask to 0
+    outflow[mask == 0] = 0
+
+    return outflow

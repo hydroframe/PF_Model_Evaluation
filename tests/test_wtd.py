@@ -13,7 +13,7 @@ def test_water_table_depth(metadata, test_data_dir):
     saturation_files, _, _ = metadata.output_files('saturation', index_list=index_list)
     nt = len(index_list)
 
-    wtd = np.zeros((nt, nx, ny))
+    wtd = np.zeros((nt, ny, nx))
     for i, (pressure_file, saturation_file) in enumerate(zip(pressure_files, saturation_files)):
         pressure = pfio.pfread(pressure_file)
         saturation = pfio.pfread(saturation_file)
