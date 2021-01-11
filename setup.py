@@ -18,7 +18,7 @@ setup(
     ],
 
     extras_require={
-        'dev': ['mock', 'numpydoc', 'pytest', 'sphinx', 'sphinxcontrib-bibtex', 'sphinx-rtd-theme']
+        'dev': ['mock', 'numpydoc', 'pytest', 'sphinx', 'sphinxcontrib-bibtex<2.0.0', 'sphinx-rtd-theme']
     }
 
 )
