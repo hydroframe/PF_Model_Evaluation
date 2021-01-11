@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='pfspinup',
-    version='0.0.8',
+    version='0.0.9',
     packages=['pfspinup', 'pfspinup.data'],
     package_data={'pfspinup.data': ['*', '*/*']},
     zip_safe=False,
@@ -18,7 +18,7 @@ setup(
     ],
 
     extras_require={
-        'dev': ['mock', 'numpydoc', 'pytest', 'sphinx', 'sphinxcontrib-bibtex', 'sphinx-rtd-theme']
+        'dev': ['mock', 'numpydoc', 'pytest', 'sphinx', 'sphinxcontrib-bibtex<2.0.0', 'sphinx-rtd-theme']
     }
 
 )

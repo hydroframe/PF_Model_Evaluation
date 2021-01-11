@@ -7,5 +7,5 @@ parflowio
 pftools
 pytest
 sphinx
-sphinxcontrib-bibtex
+sphinxcontrib-bibtex<2.0.0
 sphinx-rtd-theme
