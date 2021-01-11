@@ -96,30 +96,14 @@ def calculate_evapotranspiration(mask, et, dx, dy, dz):
     return total
 
 
-def calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy):
-    """
-    Calculate overland flow
-
-    This function implements the 'OverlandFlow' algorithm for overland flow.
-
-    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
-    :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
-    :param slopex: ny-by-nx
-    :param slopey: ny-by-nx
-    :param mannings: scalar value
-    :param dx: Length of a grid element in the x direction
-    :param dy: Length of a grid element in the y direction
-    :return: A ny-by-nx ndarray of overland flow values
-    """
-    pressure_top = pressure[-1, ...].copy()
-    pressure_top[pressure_top < 0] = 0
+def _overland_flow(pressure_top, slopex, slopey, mannings, dx, dy):
 
     # Calculate fluxes across east and north faces
 
     # ---------------
     # The x direction
     # ---------------
-    qx = -(np.sign(slopex) * (np.abs(slopex) ** 0.5) / mannings) * (pressure_top ** (5/3)) * dy
+    qx = -(np.sign(slopex) * (np.abs(slopex) ** 0.5) / mannings) * (pressure_top ** (5 / 3)) * dy
 
     # Upwinding to get flux across the east face of cells - based on qx[i] if it is positive and qx[i+1] if negative
     qeast = np.maximum(0, qx[:, :-1]) - np.maximum(0, -qx[:, 1:])
@@ -135,7 +119,7 @@ def calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy):
     # ---------------
     # The y direction
     # ---------------
-    qy = -(np.sign(slopey) * (np.abs(slopey) ** 0.5) / mannings) * (pressure_top ** (5/3)) * dx
+    qy = -(np.sign(slopey) * (np.abs(slopey) ** 0.5) / mannings) * (pressure_top ** (5 / 3)) * dx
 
     # Upwinding to get flux across the north face of cells - based in qy[j] if it is positive and qy[j+1] if negative
     qnorth = np.maximum(0, qy[:-1, :]) - np.maximum(0, -qy[1:, :])
@@ -148,40 +132,14 @@ def calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy):
     # qy[-1] is positive
     qnorth = np.vstack([qnorth, np.maximum(0, qy[-1, :])])
 
-    # ---------------
-    # Total Outflow
-    # ---------------
-
-    # Outflow is a positive qeast[i,j] or qnorth[i,j] or a negative qeast[i,j-1], qnorth[i-1,j]
-    outflow = np.maximum(0, qeast[:, 1:]) + np.maximum(0, -qeast[:, :-1]) + \
-              np.maximum(0, qnorth[1:, :]) + np.maximum(0, -qnorth[:-1, :])
-
-    # Set the outflow values outside the mask to 0
-    outflow[mask[-1, ...] == 0] = 0
-
-    return outflow
+    return qeast, qnorth
 
 
-def calculate_overland_flow_kinematic(mask, pressure, slopex, slopey, mannings, dx, dy, epsilon=1e-5):
-    """
-    Calculate overland flow
+def _overland_flow_kinematic(mask, pressure_top, slopex, slopey, mannings, dx, dy, epsilon):
 
-    This function implements the 'OverlandKinematic' algorithm for overland flow.
-
-    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
-    :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
-    :param slopex: ny-by-nx
-    :param slopey: ny-by-nx
-    :param mannings: scalar value
-    :param dx: Length of a grid element in the x direction
-    :param dy: Length of a grid element in the y direction
-    :param epsilon: Minimum slope magnitude for solver.
-        This is set using the Solver.OverlandKinematic.Epsilon key in Parflow.
-    :return: A ny-by-nx ndarray of overland flow values
-    """
-    pressure_top = pressure[-1, ...].copy()
-    pressure_top = np.nan_to_num(pressure_top)
-    pressure_top[pressure_top < 0] = 0
+    # We will be tweaking the slope values for this algorithm, so we make a copy
+    slopex = slopex.copy()
+    slopey = slopey.copy()
 
     # We're only interested in the surface mask, as an ny-by-nx array
     mask = mask[-1, ...]
@@ -228,6 +186,34 @@ def calculate_overland_flow_kinematic(mask, pressure, slopex, slopey, mannings, 
     q_y0 = -slopey[0, :] / flux_factor[0, :] * np.maximum(0, np.sign(slopey[0, :]) * pressure_top[0, :]) ** (5 / 3) * dx
     qnorth = np.vstack([q_y0, q_y])
 
+    return qeast, qnorth
+
+
+def calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy, kinematic=True, epsilon=1e-5):
+    """
+    Calculate overland flow
+
+    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
+    :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
+    :param slopex: ny-by-nx
+    :param slopey: ny-by-nx
+    :param mannings: scalar value
+    :param dx: Length of a grid element in the x direction
+    :param dy: Length of a grid element in the y direction
+    :param kinematic: Whether to use the 'kinematic' algorithm to calculate overland flow.
+    :param epsilon: Minimum slope magnitude for solver. Only applicable if kinematic=True.
+        This is set using the Solver.OverlandKinematic.Epsilon key in Parflow.
+    :return: A ny-by-nx ndarray of overland flow values
+    """
+    pressure_top = pressure[-1, ...].copy()
+    pressure_top = np.nan_to_num(pressure_top)
+    pressure_top[pressure_top < 0] = 0
+
+    if kinematic:
+        qeast, qnorth = _overland_flow_kinematic(mask, pressure_top, slopex, slopey, mannings, dx, dy, epsilon)
+    else:
+        qeast, qnorth = _overland_flow(pressure_top, slopex, slopey, mannings, dx, dy)
+
     # ---------------
     # Total Outflow
     # ---------------
@@ -237,6 +223,6 @@ def calculate_overland_flow_kinematic(mask, pressure, slopex, slopey, mannings, 
               np.maximum(0, qnorth[1:, :]) + np.maximum(0, -qnorth[:-1, :])
 
     # Set the outflow values outside the mask to 0
-    outflow[mask == 0] = 0
+    outflow[mask[-1, ...] == 0] = 0
 
     return outflow

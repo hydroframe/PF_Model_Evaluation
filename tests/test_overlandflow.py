@@ -1,7 +1,7 @@
 import os.path
 import numpy as np
 import pfspinup.pfio as pfio
-from pfspinup.common import calculate_overland_flow, calculate_overland_flow_kinematic
+from pfspinup.common import calculate_overland_flow
 
 
 TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
@@ -29,7 +29,7 @@ def test_overland_flow(metadata, test_data_dir):
         pressure[mask == 0] = np.nan
         saturation[mask == 0] = np.nan
 
-        overland_flow[i, ...] = calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy)
+        overland_flow[i, ...] = calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy, kinematic=False)
 
     assert np.allclose(overland_flow, np.load(f'{test_data_dir}/overland_flow.npy'), equal_nan=True)
 
@@ -54,6 +54,6 @@ def test_overland_flow_kinematic(metadata, test_data_dir):
         pressure = pfio.pfread(pressure_file)
         pressure[mask == 0] = np.nan
 
-        overland_flow[i, ...] = calculate_overland_flow_kinematic(mask, pressure, slopex, slopey, mannings, dx, dy)
+        overland_flow[i, ...] = calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy)
 
     assert np.allclose(overland_flow, np.load(f'{test_data_dir}/overland_flow_kinematic.npy'), equal_nan=True)
