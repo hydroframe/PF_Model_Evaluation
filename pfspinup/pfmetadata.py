@@ -53,7 +53,12 @@ class PFMetadata:
     def pfb_data(self, filename, apply_mask=True):
         data = pfio.pfread(self._get_absolute_path(filename))
         if apply_mask:
-            data[self.mask == 0] = np.nan
+            # For surface (2D) properties, only apply the surface mask
+            if data.ndim == 3 and data.shape[0] == 1:
+                data[self.mask[0, ...][np.newaxis, ...] == 0] = np.nan
+                data = data.squeeze(axis=0)
+            else:
+                data[self.mask == 0] = np.nan
         return data
 
     def input_data(self, which, apply_mask=True):
@@ -61,7 +66,7 @@ class PFMetadata:
         assert input['type'] == 'pfb', 'Only pfb input data supported for now'
         assert len(input['data']) == 1, 'Only a single data entry supported for now'
         pfb_file = input['data'][0]['file']
-        return self.pfb_data(pfb_file, apply_mask=apply_mask)
+        return self.pfb_data(pfb_file, apply_mask=apply_mask and which != 'mask')
 
     def output_files(self, which, folder=None, index_list=None, ignore_missing=False):
         """
@@ -145,8 +150,15 @@ class PFMetadata:
         return d
 
     def get_single_domain_value(self, which):
-        g = self[f'{which}.GeomNames']
-        assert type(g) == str, f'Multiple {which}.GeomNames found'
+        try:
+            g = self[f'{which}.GeomNames']
+        except KeyError:
+            # Some keys do no specify a domain name at all
+            no_domain = True
+        else:
+            no_domain = False
+            assert type(g) == str, f'Multiple {which}.GeomNames found'
+
         typ = self[f'{which}.Type']
         if typ == 'Constant':
             try:
@@ -155,7 +167,10 @@ class PFMetadata:
                 # Some properties (e.g. Mannings have their geom keys reversed)
                 return self[f'{which}.Geom.{g}.Value']
         elif typ == 'PFBFile':
-            return self.pfb_data(self[f'Geom.{g}.{which}.FileName'])
+            if no_domain:
+                return self.pfb_data(self[f'{which}.FileName'])
+            else:
+                return self.pfb_data(self[f'Geom.{g}.{which}.FileName'])
         elif typ == 'nzList':
             return self.nz_list(which)
         return self[f'Geom.{g}.{which}.Value']
