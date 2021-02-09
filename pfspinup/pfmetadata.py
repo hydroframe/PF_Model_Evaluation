@@ -55,7 +55,7 @@ class PFMetadata:
         if apply_mask:
             # For surface (2D) properties, only apply the surface mask
             if data.ndim == 3 and data.shape[0] == 1:
-                data[self.mask[0, ...][np.newaxis, ...] == 0] = np.nan
+                data[self.mask[-1, ...][np.newaxis, ...] == 0] = np.nan
                 data = data.squeeze(axis=0)
             else:
                 data[self.mask == 0] = np.nan

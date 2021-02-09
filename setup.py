@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='pfspinup',
-    version='0.0.10',
+    version='0.0.11',
     packages=['pfspinup', 'pfspinup.data'],
     package_data={'pfspinup.data': ['*', '*/*']},
     zip_safe=False,
