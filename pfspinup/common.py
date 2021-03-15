@@ -15,8 +15,6 @@ def _binary_erosion(input_array):
 
     An efficient version of this algorithm is available as scipy.ndimage.morphology.binary_erosion,
     but here we implement a naive version of the algorithm in pure numpy to reduce dependencies.
-    Since it is likely that the function will be called repeatedly on a single mask, we wrap the function in lru_cache
-    to reduce overhead.
     """
     rows, cols = input_array.shape
 
