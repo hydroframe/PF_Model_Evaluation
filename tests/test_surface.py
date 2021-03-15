@@ -21,7 +21,7 @@ def test_surface_storage(metadata, test_data_dir):
         saturation[mask == 0] = np.nan
 
         surface_storage[i, ...] = np.sum(
-            calculate_surface_storage(mask, pressure, dx, dy),
+            calculate_surface_storage(pressure, dx, dy, mask=mask),
             axis=(0, 1)
         )
 

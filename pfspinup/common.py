@@ -1,6 +1,38 @@
 import numpy as np
 
 
+def _binary_erosion(input_array):
+    """
+    Given a binary numpy array, return a binary eroded version of the array
+    :param input_array: A 2D ndarray of 0/1 values
+    :return: The binary eroded array
+
+    Note: This function is useful for computing the "edge" pixels of a mask array,
+    which in turn is useful for overland flow calculations out of a domain.
+
+    4-connectivity is used to determine neighbors of a pixel for erosion purposes (i.e. a "staircase pattern", if
+    found, is preserved in the input array).
+
+    An efficient version of this algorithm is available as scipy.ndimage.morphology.binary_erosion,
+    but here we implement a naive version of the algorithm in pure numpy to reduce dependencies.
+    Since it is likely that the function will be called repeatedly on a single mask, we wrap the function in lru_cache
+    to reduce overhead.
+    """
+    rows, cols = input_array.shape
+
+    mask = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]]).astype(np.bool)
+    input_array_padded = np.pad(input_array, 1)
+    eroded_array = np.zeros_like(input_array_padded)
+
+    for row in range(rows):
+        for col in range(cols):
+            # output value = minimum value of all the pixels in the input pixel's neighborhood
+            eroded_array[row + 1, col + 1] = np.min(
+                input_array_padded[row:row + 3, col:col + 3][mask]
+            )
+    return eroded_array[1:rows + 1, 1:cols + 1]
+
+
 def calculate_water_table_depth(pressure, saturation, dz):
     """
     Calculate water table depth from the land surface
@@ -26,12 +58,17 @@ def calculate_water_table_depth(pressure, saturation, dz):
 
     saturation_depth = np.take_along_axis(depth, z_indices, axis=0)  # shape (1, ny, nx)
     ponding_depth = np.take_along_axis(pressure, z_indices, axis=0)  # shape (1, ny, nx)
+
+    # If ponding depth is -ve at any column, replace it with a np.nan,
+    # indicating that we are unable to determine the wtd at that column
+    ponding_depth[ponding_depth < 0] = np.nan
+
     wtd = saturation_depth - ponding_depth  # shape (1, ny, nx)
 
     return wtd.squeeze(axis=0)  # shape (ny, nx)
 
 
-def calculate_subsurface_storage(mask, porosity, pressure, saturation, specific_storage, dx, dy, dz):
+def calculate_subsurface_storage(porosity, pressure, saturation, specific_storage, dx, dy, dz, mask=None):
     """
     Calculate gridded subsurface storage across several layers.
 
@@ -41,7 +78,6 @@ def calculate_subsurface_storage(mask, porosity, pressure, saturation, specific_
       - compressible subsurface storage
         (pressure * saturation * specific storage * depth of this layer) * dx * dy
 
-    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
     :param porosity: A nz-by-ny-by-nx ndarray of porosity values (bottom layer to top layer)
     :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
     :param saturation: A nz-by-ny-by-nx ndarray of saturation values (bottom layer to top layer)
@@ -49,8 +85,13 @@ def calculate_subsurface_storage(mask, porosity, pressure, saturation, specific_
     :param dx: Length of a grid element in the x direction
     :param dy: Length of a grid element in the y direction
     :param dz: Thickness of a grid element in the z direction (bottom layer to top layer)
+    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
+        If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
     :return: A nz-by-ny-by-nx ndarray of subsurface storage values, spanning all layers (bottom to top)
     """
+    if mask is None:
+        mask = np.ones_like(porosity)
+
     dz = dz[:, np.newaxis, np.newaxis]  # make 3d so we can broadcast the multiplication below
     incompressible = porosity * saturation * dz * dx * dy
     compressible = pressure * saturation * specific_storage * dz * dx * dy
@@ -59,19 +100,23 @@ def calculate_subsurface_storage(mask, porosity, pressure, saturation, specific_
     return total
 
 
-def calculate_surface_storage(mask, pressure, dx, dy):
+def calculate_surface_storage(pressure, dx, dy, mask=None):
     """
     Calculate gridded surface storage on the top layer.
 
     Surface storage is given by:
       Pressure at the top layer * dx * dy (for pressure values > 0)
 
-    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
     :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
     :param dx: Length of a grid element in the x direction
     :param dy: Length of a grid element in the y direction
+    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
+        If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
     :return: An ny-by-nx ndarray of surface storage values
     """
+    if mask is None:
+        mask = np.ones_like(pressure)
+
     surface_mask = mask[-1, ...]
     total = pressure[-1, ...] * dx * dy
     total[total < 0] = 0  # surface storage is 0 when pressure < 0
@@ -79,17 +124,21 @@ def calculate_surface_storage(mask, pressure, dx, dy):
     return total
 
 
-def calculate_evapotranspiration(mask, et, dx, dy, dz):
+def calculate_evapotranspiration(et, dx, dy, dz, mask=None):
     """
     Calculate gridded evapotranspiration across several layers.
 
-    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
     :param et: A nz-by-ny-by-nx ndarray of evapotranspiration flux values with units 1/T (bottom layer to top layer)
     :param dx: Length of a grid element in the x direction
     :param dy: Length of a grid element in the y direction
     :param dz: Thickness of a grid element in the z direction (bottom layer to top layer)
+    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
+        If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
     :return: A nz-by-ny-by-nx ndarray of evapotranspiration values (units L^3/T), spanning all layers (bottom to top)
     """
+    if mask is None:
+        mask = np.ones_like(et)
+
     dz = dz[:, np.newaxis, np.newaxis]  # make 3d so we can broadcast the multiplication below
     total = et * dz * dx * dy
     total[mask == 0] = 0  # output values for points outside the mask are clamped to 0
@@ -189,30 +238,61 @@ def _overland_flow_kinematic(mask, pressure_top, slopex, slopey, mannings, dx, d
     return qeast, qnorth
 
 
-def calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy, kinematic=True, epsilon=1e-5):
+def calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_method='OverlandKinematic', epsilon=1e-5, mask=None):
     """
-    Calculate overland flow
+    Calculate overland fluxes across grid faces
 
-    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
     :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
     :param slopex: ny-by-nx
     :param slopey: ny-by-nx
-    :param mannings: scalar value
+    :param mannings: a scalar value, or a ny-by-nx ndarray
     :param dx: Length of a grid element in the x direction
     :param dy: Length of a grid element in the y direction
-    :param kinematic: Whether to use the 'kinematic' algorithm to calculate overland flow.
+    :param flow_method: Either 'OverlandFlow' or 'OverlandKinematic'
+        'OverlandKinematic' by default.
     :param epsilon: Minimum slope magnitude for solver. Only applicable if kinematic=True.
         This is set using the Solver.OverlandKinematic.Epsilon key in Parflow.
-    :return: A ny-by-nx ndarray of overland flow values
+    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
+        If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
+    :return: A 2-tuple:
+        qeast - A ny-by-(nx+1) ndarray of overland flux values
+        qnorth - A (ny+1)-by-nx ndarray of overland flux values
+
     """
     pressure_top = pressure[-1, ...].copy()
     pressure_top = np.nan_to_num(pressure_top)
     pressure_top[pressure_top < 0] = 0
 
-    if kinematic:
+    assert flow_method in ('OverlandFlow', 'OverlandKinematic'), 'Unknown flow method'
+    if flow_method == 'OverlandKinematic':
+        if mask is None:
+            mask = np.ones_like(pressure)
         qeast, qnorth = _overland_flow_kinematic(mask, pressure_top, slopex, slopey, mannings, dx, dy, epsilon)
     else:
         qeast, qnorth = _overland_flow(pressure_top, slopex, slopey, mannings, dx, dy)
+
+    return qeast, qnorth
+
+
+def calculate_overland_flow_grid(pressure, slopex, slopey, mannings, dx, dy, flow_method='OverlandKinematic', epsilon=1e-5, mask=None):
+    """
+    Calculate overland outflow per grid cell of a domain
+
+    :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
+    :param slopex: ny-by-nx
+    :param slopey: ny-by-nx
+    :param mannings: a scalar value, or a ny-by-nx ndarray
+    :param dx: Length of a grid element in the x direction
+    :param dy: Length of a grid element in the y direction
+    :param flow_method: Either 'OverlandFlow' or 'OverlandKinematic'
+        'OverlandKinematic' by default.
+    :param epsilon: Minimum slope magnitude for solver. Only applicable if kinematic=True.
+        This is set using the Solver.OverlandKinematic.Epsilon key in Parflow.
+    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
+        If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
+    :return: A ny-by-nx ndarray of overland flow values
+    """
+    qeast, qnorth = calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_method=flow_method, epsilon=epsilon, mask=mask)
 
     # ---------------
     # Total Outflow
@@ -224,5 +304,36 @@ def calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy, ki
 
     # Set the outflow values outside the mask to 0
     outflow[mask[-1, ...] == 0] = 0
+
+    return outflow
+
+
+def calculate_overland_flow(pressure, slopex, slopey, mannings, dx, dy, flow_method='OverlandKinematic', epsilon=1e-5, mask=None):
+    """
+    Calculate overland outflow out of a domain
+
+    :param pressure: A nz-by-ny-by-nx ndarray of pressure values (bottom layer to top layer)
+    :param slopex: ny-by-nx
+    :param slopey: ny-by-nx
+    :param mannings: a scalar value, or a ny-by-nx ndarray
+    :param dx: Length of a grid element in the x direction
+    :param dy: Length of a grid element in the y direction
+    :param flow_method: Either 'OverlandFlow' or 'OverlandKinematic'
+        'OverlandKinematic' by default.
+    :param epsilon: Minimum slope magnitude for solver. Only applicable if kinematic=True.
+        This is set using the Solver.OverlandKinematic.Epsilon key in Parflow.
+    :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
+        If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
+    :return: A ny-by-nx ndarray of overland flow values
+    """
+
+    outflow_grid = calculate_overland_flow_grid(pressure, slopex, slopey, mannings, dx, dy, flow_method=flow_method, epsilon=epsilon, mask=mask)
+
+    if mask is not None:
+        surface_mask = mask[-1, ...]
+    else:
+        surface_mask = np.ones_like(slopex)
+    surface_mask_edges = (surface_mask - _binary_erosion(surface_mask)).astype(np.bool)
+    outflow = np.sum(outflow_grid[surface_mask_edges])
 
     return outflow
