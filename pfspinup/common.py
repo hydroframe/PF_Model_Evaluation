@@ -9,24 +9,48 @@ def calculate_water_table_depth(pressure, saturation, dz):
     :param dz: An ndarray of shape (nz,) of thickness values (bottom layer to top layer)
     :return: A ny-by-nx ndarray of water table depth values (measured from the top)
     """
-    # Depth of the center of each layer to the top (bottom layer to top layer)
-    _depth = (np.cumsum(dz[::-1]) - (dz[::-1]/2))[::-1]
+    # Handle single-column pressure/saturation values
+    if pressure.ndim == 1:
+        pressure = pressure[:, np.newaxis, np.newaxis]
+    if saturation.ndim == 1:
+        saturation = saturation[:, np.newaxis, np.newaxis]
+
+    domain_thickness = np.sum(dz)
+
+    # Sentinel values padded to aid in subsequent calculations
+    # A layer of thickness 0 at the top
+    dz = np.hstack([dz, 0])
+    # An unsaturated layer at the top
+    # pad_width is a tuple of (n_before, n_after) for each dimension
+    saturation = np.pad(saturation, pad_width=((0, 1), (0, 0), (0, 0)), mode='constant', constant_values=0)
+
+    # Elevation of the center of each layer from the bottom (bottom layer to top layer)
+    _elevation = np.cumsum(dz) - (dz / 2)
     # Make 3D with shape (nz, 1, 1) to allow subsequent operations
-    depth = _depth[:, np.newaxis, np.newaxis]
+    _elevation = _elevation[:, np.newaxis, np.newaxis]
 
-    def _first_saturated_layer(col):
-        # Return the 0-index of the first fully saturated layer of a grid column,
-        # measured from the top layer.
-        return np.sum(col == 1) - 1
+    """
+    Indices of first unsaturated layer across the grid, going from bottom to top
+    with 0 indicating the bottom layer.
 
-    # Indices of first saturated layer across the grid, measured from the top
-    z_indices = np.apply_along_axis(_first_saturated_layer, axis=0, arr=saturation)  # shape (ny, nx)
+    NOTE: np.argmax on a boolean array returns the index of the first True value it encounters.
+    It returns a 0 if it doesn't find *any* True values.
+    This would normally be a problem - however, since we added a sentinel 0 value to the sat array,
+    we will not encounter this case.
+    """
+    z_indices = np.maximum(
+        np.argmax(saturation < 1, axis=0) - 1,  # find first unsaturated layer; back up one cell
+        0  # clamp min. index value to 0
+    )
     # Make 3D with shape (1, ny, nx) to allow subsequent operations
     z_indices = z_indices[np.newaxis, ...]
 
-    saturation_depth = np.take_along_axis(depth, z_indices, axis=0)  # shape (1, ny, nx)
+    saturation_elevation = np.take_along_axis(_elevation, z_indices, axis=0)  # shape (1, ny, nx)
     ponding_depth = np.take_along_axis(pressure, z_indices, axis=0)  # shape (1, ny, nx)
-    wtd = saturation_depth - ponding_depth  # shape (1, ny, nx)
+
+    wt_height = saturation_elevation + ponding_depth  # shape (1, ny, nx)
+    wt_height = np.clip(wt_height, 0, domain_thickness)  # water table height clamped between 0<->domain thickness
+    wtd = domain_thickness - wt_height  # shape (1, ny, nx)
 
     return wtd.squeeze(axis=0)  # shape (ny, nx)
 
