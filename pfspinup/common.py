@@ -1,36 +1,6 @@
 import numpy as np
 
 
-def _binary_erosion(input_array):
-    """
-    Given a binary numpy array, return a binary eroded version of the array
-    :param input_array: A 2D ndarray of 0/1 values
-    :return: The binary eroded array
-
-    Note: This function is useful for computing the "edge" pixels of a mask array,
-    which in turn is useful for overland flow calculations out of a domain.
-
-    4-connectivity is used to determine neighbors of a pixel for erosion purposes (i.e. a "staircase pattern", if
-    found, is preserved in the input array).
-
-    An efficient version of this algorithm is available as scipy.ndimage.morphology.binary_erosion,
-    but here we implement a naive version of the algorithm in pure numpy to reduce dependencies.
-    """
-    rows, cols = input_array.shape
-
-    mask = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]]).astype(np.bool)
-    input_array_padded = np.pad(input_array, 1)
-    eroded_array = np.zeros_like(input_array_padded)
-
-    for row in range(rows):
-        for col in range(cols):
-            # output value = minimum value of all the pixels in the input pixel's neighborhood
-            eroded_array[row + 1, col + 1] = np.min(
-                input_array_padded[row:row + 3, col:col + 3][mask]
-            )
-    return eroded_array[1:rows + 1, 1:cols + 1]
-
-
 def calculate_water_table_depth(pressure, saturation, dz):
     """
     Calculate water table depth from the land surface
@@ -39,29 +9,48 @@ def calculate_water_table_depth(pressure, saturation, dz):
     :param dz: An ndarray of shape (nz,) of thickness values (bottom layer to top layer)
     :return: A ny-by-nx ndarray of water table depth values (measured from the top)
     """
-    # Depth of the center of each layer to the top (bottom layer to top layer)
-    _depth = (np.cumsum(dz[::-1]) - (dz[::-1]/2))[::-1]
+    # Handle single-column pressure/saturation values
+    if pressure.ndim == 1:
+        pressure = pressure[:, np.newaxis, np.newaxis]
+    if saturation.ndim == 1:
+        saturation = saturation[:, np.newaxis, np.newaxis]
+
+    domain_thickness = np.sum(dz)
+
+    # Sentinel values padded to aid in subsequent calculations
+    # A layer of thickness 0 at the top
+    dz = np.hstack([dz, 0])
+    # An unsaturated layer at the top
+    # pad_width is a tuple of (n_before, n_after) for each dimension
+    saturation = np.pad(saturation, pad_width=((0, 1), (0, 0), (0, 0)), mode='constant', constant_values=0)
+
+    # Elevation of the center of each layer from the bottom (bottom layer to top layer)
+    _elevation = np.cumsum(dz) - (dz / 2)
     # Make 3D with shape (nz, 1, 1) to allow subsequent operations
-    depth = _depth[:, np.newaxis, np.newaxis]
+    _elevation = _elevation[:, np.newaxis, np.newaxis]
 
-    def _first_saturated_layer(col):
-        # Return the 0-index of the first fully saturated layer of a grid column,
-        # measured from the top layer.
-        return np.sum(col == 1) - 1
+    """
+    Indices of first unsaturated layer across the grid, going from bottom to top
+    with 0 indicating the bottom layer.
 
-    # Indices of first saturated layer across the grid, measured from the top
-    z_indices = np.apply_along_axis(_first_saturated_layer, axis=0, arr=saturation)  # shape (ny, nx)
+    NOTE: np.argmax on a boolean array returns the index of the first True value it encounters.
+    It returns a 0 if it doesn't find *any* True values.
+    This would normally be a problem - however, since we added a sentinel 0 value to the sat array,
+    we will not encounter this case.
+    """
+    z_indices = np.maximum(
+        np.argmax(saturation < 1, axis=0) - 1,  # find first unsaturated layer; back up one cell
+        0  # clamp min. index value to 0
+    )
     # Make 3D with shape (1, ny, nx) to allow subsequent operations
     z_indices = z_indices[np.newaxis, ...]
 
-    saturation_depth = np.take_along_axis(depth, z_indices, axis=0)  # shape (1, ny, nx)
+    saturation_elevation = np.take_along_axis(_elevation, z_indices, axis=0)  # shape (1, ny, nx)
     ponding_depth = np.take_along_axis(pressure, z_indices, axis=0)  # shape (1, ny, nx)
 
-    # If ponding depth is -ve at any column, replace it with a np.nan,
-    # indicating that we are unable to determine the wtd at that column
-    ponding_depth[ponding_depth < 0] = np.nan
-
-    wtd = saturation_depth - ponding_depth  # shape (1, ny, nx)
+    wt_height = saturation_elevation + ponding_depth  # shape (1, ny, nx)
+    wt_height = np.clip(wt_height, 0, domain_thickness)  # water table height clamped between 0<->domain thickness
+    wtd = domain_thickness - wt_height  # shape (1, ny, nx)
 
     return wtd.squeeze(axis=0)  # shape (ny, nx)
 
@@ -296,7 +285,7 @@ def calculate_overland_flow_grid(pressure, slopex, slopey, mannings, dx, dy, flo
     # Total Outflow
     # ---------------
 
-    # Outflow is a positive qeast[i,j] or qnorth[i,j] or a negative qeast[i,j-1], qnorth[i-1,j]
+    # Outflow is a positive qeast[i,j+1] or qnorth[i,j] or a negative qeast[i,j], qnorth[i+1,j]
     outflow = np.maximum(0, qeast[:, 1:]) + np.maximum(0, -qeast[:, :-1]) + \
               np.maximum(0, qnorth[1:, :]) + np.maximum(0, -qnorth[:-1, :])
 
@@ -324,14 +313,31 @@ def calculate_overland_flow(pressure, slopex, slopey, mannings, dx, dy, flow_met
         If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
     :return: A ny-by-nx ndarray of overland flow values
     """
-
-    outflow_grid = calculate_overland_flow_grid(pressure, slopex, slopey, mannings, dx, dy, flow_method=flow_method, epsilon=epsilon, mask=mask)
+    qeast, qnorth = calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_method=flow_method, epsilon=epsilon, mask=mask)
 
     if mask is not None:
-        surface_mask = mask[-1, ...]
+        surface_mask = mask[-1, ...]  # shape ny, nx
     else:
-        surface_mask = np.ones_like(slopex)
-    surface_mask_edges = (surface_mask - _binary_erosion(surface_mask)).astype(np.bool)
-    outflow = np.sum(outflow_grid[surface_mask_edges])
+        surface_mask = np.ones_like(slopex)  # shape ny, nx
 
-    return outflow
+    # Important to typecast mask to float to avoid values wrapping around when performing a np.diff
+    surface_mask = surface_mask.astype('float')
+
+    # Find edge pixels for our surface mask along each face - N/S/E/W
+    # All of these have shape (ny, nx) and values as 0/1
+    edge_north = np.maximum(0, np.diff(surface_mask, axis=0, prepend=0))
+    edge_south = np.maximum(0, -np.diff(surface_mask, axis=0, append=0))
+    edge_west = np.maximum(0, np.diff(surface_mask, axis=1, prepend=0))  # Note: west, not east!
+    edge_east = np.maximum(0, -np.diff(surface_mask, axis=1, append=0))
+
+    # North flux is the sum of +ve qnorth values on north edges
+    flux_north = np.sum(np.maximum(0, qnorth[np.where(edge_north == 1)]))
+    # South flux is the negated sum of -ve qnorth values (shifted up by one) for south edges
+    flux_south = np.sum(np.maximum(0, -np.roll(qnorth, -1, axis=0)[np.where(edge_south == 1)]))
+    # East flux is the sum of +ve qeast values (shifted left by one) for east edges
+    flux_east = np.sum(np.maximum(0, np.roll(qeast, -1, axis=1)[np.where(edge_east == 1)]))
+    # West flux is the negated sum of -ve qeast values of west edges
+    flux_west = -np.sum(np.minimum(0, qeast[np.where(edge_west == 1)]))
+
+    flux = flux_north + flux_south + flux_east + flux_west
+    return flux

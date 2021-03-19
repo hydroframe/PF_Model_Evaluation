@@ -38,8 +38,6 @@ def test_overland_flow(metadata, test_data_dir):
     mask = pfio.pfread(os.path.join(TEST_DATA_DIR, 'mask.pfb'))
     dx = metadata['ComputationalGrid.DX']
     dy = metadata['ComputationalGrid.DY']
-    nx = metadata['ComputationalGrid.NX']
-    ny = metadata['ComputationalGrid.NY']
     slopex = metadata.slope_x()
     slopey = metadata.slope_y()
     mannings = metadata.get_single_domain_value('Mannings')
@@ -61,11 +59,11 @@ def test_overland_flow(metadata, test_data_dir):
     assert(np.allclose(
         overland_flow,
         [
-            6766.73834572, 6626.98038291, 6477.57177402, 6328.5727824,  6185.20026083,
-            6053.13966686, 5933.42110441, 5821.14253547, 5670.67827593, 5382.77888711,
-            4875.2074138,  4203.36770264, 3481.27122382, 2782.88844656, 2222.85805693,
-            1780.56437809, 1462.61708404, 1294.92192591, 1256.35663079, 1359.44428856,
-            1456.63523202, 1535.90613387, 1596.81943196, 1644.6891018,  1683.5897374
+            674.87310619, 659.19054282, 641.38708175, 623.33085645, 605.77950446,
+            589.54650443, 574.5304113,  559.54567302, 536.80291996, 489.41410986,
+            406.71785874, 313.5209457,  239.71369513, 174.20029318, 118.85148868,
+            75.86020225,  45.32835147,  26.82107036,  18.91468012,  21.63910474,
+            24.44418158,  26.94064145,  29.17335288,  31.52454615,  34.0745836
          ]
     ))
 
