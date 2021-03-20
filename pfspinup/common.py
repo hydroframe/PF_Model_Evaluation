@@ -353,9 +353,9 @@ def calculate_overland_flow(pressure, slopex, slopey, mannings, dx, dy, flow_met
     # All of these have shape (ny, nx) and values as 0/1
 
     # find forward difference of +1 on axis 0
-    edge_north = np.maximum(0, np.diff(surface_mask, axis=0, prepend=0))
+    edge_south = np.maximum(0, np.diff(surface_mask, axis=0, prepend=0))
     # find forward difference of -1 on axis 0
-    edge_south = np.maximum(0, -np.diff(surface_mask, axis=0, append=0))
+    edge_north = np.maximum(0, -np.diff(surface_mask, axis=0, append=0))
     # find forward difference of +1 on axis 1
     edge_west = np.maximum(0, np.diff(surface_mask, axis=1, prepend=0))
     # find forward difference of -1 on axis 1
