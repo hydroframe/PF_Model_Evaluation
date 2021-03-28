@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import pfspinup.pfio as pfio
 from pfspinup.common import calculate_water_table_depth

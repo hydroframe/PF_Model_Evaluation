@@ -1,6 +1,6 @@
 import numpy as np
 from pfspinup.common import calculate_surface_storage, calculate_subsurface_storage, calculate_water_table_depth, \
-    calculate_evapotranspiration, calculate_overland_flow
+    calculate_evapotranspiration, calculate_overland_flow_grid
 from pfspinup.pfmetadata import PFMetadata
 
 RUN_DIR = '../pfspinup/data/example_run'
@@ -76,13 +76,13 @@ for i, (pressure_file, saturation_file) in enumerate(zip(pressure_files, saturat
 
     # total subsurface storage for this time step is the summation of substorage surface across all x/y/z slices
     subsurface_storage[i, ...] = np.sum(
-        calculate_subsurface_storage(mask, porosity, pressure, saturation, specific_storage, dx, dy, dz),
+        calculate_subsurface_storage(porosity, pressure, saturation, specific_storage, dx, dy, dz, mask=mask),
         axis=(0, 1, 2)
     )
 
     # total surface storage for this time step is the summation of substorage surface across all x/y slices
     surface_storage[i, ...] = np.sum(
-        calculate_surface_storage(mask, pressure, dx, dy),
+        calculate_surface_storage(pressure, dx, dy, mask=mask),
         axis=(0, 1)
     )
 
@@ -91,8 +91,8 @@ for i, (pressure_file, saturation_file) in enumerate(zip(pressure_files, saturat
     if et_flux_values is not None:
         # total ET for this time step is the summation of ET values across all x/y/z slices
         et[i, ...] = np.sum(
-            calculate_evapotranspiration(mask, et_flux_values, dx, dy, dz),
+            calculate_evapotranspiration(et_flux_values, dx, dy, dz, mask=mask),
             axis=(0, 1, 2)
         )
 
-    overland_flow[i, ...] = calculate_overland_flow(mask, pressure, slopex, slopey, mannings, dx, dy)
+    overland_flow[i, ...] = calculate_overland_flow_grid(pressure, slopex, slopey, mannings, dx, dy, mask=mask)

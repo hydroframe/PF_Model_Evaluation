@@ -25,7 +25,7 @@ def test_subsurface_storage(metadata, test_data_dir):
         saturation[mask == 0] = np.nan
 
         subsurface_storage[i, ...] = np.sum(
-            calculate_subsurface_storage(mask, porosity, pressure, saturation, specific_storage, dx, dy, dz),
+            calculate_subsurface_storage(porosity, pressure, saturation, specific_storage, dx, dy, dz, mask=mask),
             axis=(0, 1, 2)
         )
 

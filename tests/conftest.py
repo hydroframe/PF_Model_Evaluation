@@ -1,5 +1,6 @@
 import os.path
 import pytest
+from parflow import Run
 import pfspinup
 from pfspinup.pfmetadata import PFMetadata
 
@@ -17,6 +18,11 @@ def run_dir():
 @pytest.fixture(scope='module')
 def run_name():
     return RUN_NAME
+
+
+@pytest.fixture(scope='module')
+def run():
+    return Run.from_definition(f'{RUN_DIR}/{RUN_NAME}.pfidb')
 
 
 @pytest.fixture(scope='module')
