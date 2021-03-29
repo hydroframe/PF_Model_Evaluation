@@ -362,11 +362,11 @@ def calculate_overland_flow(pressure, slopex, slopey, mannings, dx, dy, flow_met
     edge_east = np.maximum(0, -np.diff(surface_mask, axis=1, append=0))
 
     # North flux is the sum of +ve qnorth values (shifted up by one) on north edges
-    flux_north = np.sum(np.maximum(0, -np.roll(qnorth, -1, axis=0)[np.where(edge_north == 1)]))
+    flux_north = np.sum(np.maximum(0, np.roll(qnorth, -1, axis=0)[np.where(edge_north == 1)]))
     # South flux is the negated sum of -ve qnorth values for south edges
     flux_south = np.sum(np.maximum(0, -qnorth[np.where(edge_south == 1)]))
     # West flux is the negated sum of -ve qeast values of west edges
-    flux_west = -np.sum(np.minimum(0, qeast[np.where(edge_west == 1)]))
+    flux_west = np.sum(np.maximum(0, -qeast[np.where(edge_west == 1)]))
     # East flux is the sum of +ve qeast values (shifted left by one) for east edges
     flux_east = np.sum(np.maximum(0, np.roll(qeast, -1, axis=1)[np.where(edge_east == 1)]))
 
