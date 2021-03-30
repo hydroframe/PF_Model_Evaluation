@@ -272,6 +272,18 @@ def calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_m
     (North)
     """
 
+    # Handle cases when expected 2D arrays come in as 3D
+    if slopex.ndim == 3:
+        assert slopex.shape[0] == 1, f'Expected shape[0] of 3D ndarray {slopex} to be 1'
+        slopex = slopex.squeeze(axis=0)
+    if slopey.ndim == 3:
+        assert slopey.shape[0] == 1, f'Expected shape[0] of 3D ndarray {slopey} to be 1'
+        slopey = slopey.squeeze(axis=0)
+    mannings = np.array(mannings)
+    if mannings.ndim == 3:
+        assert mannings.shape[0] == 1, f'Expected shape[0] of 3D ndarray {mannings} to be 1'
+        mannings = mannings.squeeze(axis=0)
+
     pressure_top = pressure[-1, ...].copy()
     pressure_top = np.nan_to_num(pressure_top)
     pressure_top[pressure_top < 0] = 0
