@@ -8,7 +8,7 @@ TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
 
 def test_overland_flow_grid(metadata, test_data_dir):
-    mask = pfio.pfread(os.path.join(TEST_DATA_DIR, 'mask.pfb'))
+    mask = metadata.mask
     dx = metadata['ComputationalGrid.DX']
     dy = metadata['ComputationalGrid.DY']
     nx = metadata['ComputationalGrid.NX']
@@ -35,7 +35,7 @@ def test_overland_flow_grid(metadata, test_data_dir):
 
 
 def test_overland_flow(metadata, test_data_dir):
-    mask = pfio.pfread(os.path.join(TEST_DATA_DIR, 'mask.pfb'))
+    mask = metadata.mask
     dx = metadata['ComputationalGrid.DX']
     dy = metadata['ComputationalGrid.DY']
     slopex = metadata.slope_x()
@@ -56,20 +56,24 @@ def test_overland_flow(metadata, test_data_dir):
 
         overland_flow[i] = calculate_overland_flow(pressure, slopex, slopey, mannings, dx, dy, mask=mask, flow_method='OverlandFlow')
 
+    print('---------')
+    print(overland_flow)
+    print('----------')
+
     assert(np.allclose(
         overland_flow,
         [
-            6117.29495448, 5984.23850997, 5842.64921322, 5700.70976294, 5563.31285031,
-            5435.45154667, 5318.53236169, 5209.34719981, 5072.78125123, 4832.69184322,
-            4424.93198645, 3889.77077796, 3305.03738111, 2706.69214599, 2180.25177262,
-            1750.6914993,  1438.27595013, 1270.31481713, 1224.03278596, 1307.4280435,
-            1384.83212691, 1446.02558485, 1491.18668748, 1525.35330985, 1552.47024012
-         ]
+            26115.33843648, 25592.72853644, 25055.0265084,  24529.07250998, 24017.55359466,
+            23524.21743305, 23041.32461742, 22551.64303395, 21908.1469928,  20803.21280048,
+            18987.50872112, 16599.32430781, 13966.92527992, 11469.4984031,  9402.580625,
+            7825.23226117,  6711.42010401,  6056.84280502,  5818.99682113,  6065.77226212,
+            6338.3873967,   6598.95402581,  6848.57274397,  7104.98202936,  7342.22940416
+        ]
     ))
 
 
 def test_overland_flow_kinematic_grid(metadata, test_data_dir):
-    mask = pfio.pfread(os.path.join(TEST_DATA_DIR, 'mask.pfb'))
+    mask = metadata.mask
     dx = metadata['ComputationalGrid.DX']
     dy = metadata['ComputationalGrid.DY']
     nx = metadata['ComputationalGrid.NX']

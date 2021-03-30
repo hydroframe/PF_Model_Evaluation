@@ -79,6 +79,7 @@ def calculate_subsurface_storage(porosity, pressure, saturation, specific_storag
     if mask is None:
         mask = np.ones_like(porosity)
 
+    mask = np.where(mask > 0, 1, 0)
     dz = dz[:, np.newaxis, np.newaxis]  # make 3d so we can broadcast the multiplication below
     incompressible = porosity * saturation * dz * dx * dy
     compressible = pressure * saturation * specific_storage * dz * dx * dy
@@ -104,6 +105,7 @@ def calculate_surface_storage(pressure, dx, dy, mask=None):
     if mask is None:
         mask = np.ones_like(pressure)
 
+    mask = np.where(mask > 0, 1, 0)
     surface_mask = mask[-1, ...]
     total = pressure[-1, ...] * dx * dy
     total[total < 0] = 0  # surface storage is 0 when pressure < 0
@@ -126,6 +128,7 @@ def calculate_evapotranspiration(et, dx, dy, dz, mask=None):
     if mask is None:
         mask = np.ones_like(et)
 
+    mask = np.where(mask > 0, 1, 0)
     dz = dz[:, np.newaxis, np.newaxis]  # make 3d so we can broadcast the multiplication below
     total = et * dz * dx * dy
     total[mask == 0] = 0  # output values for points outside the mask are clamped to 0
@@ -292,6 +295,7 @@ def calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_m
     if flow_method == 'OverlandKinematic':
         if mask is None:
             mask = np.ones_like(pressure)
+        mask = np.where(mask > 0, 1, 0)
         qeast, qnorth = _overland_flow_kinematic(mask, pressure_top, slopex, slopey, mannings, dx, dy, epsilon)
     else:
         qeast, qnorth = _overland_flow(pressure_top, slopex, slopey, mannings, dx, dy)
@@ -318,6 +322,7 @@ def calculate_overland_flow_grid(pressure, slopex, slopey, mannings, dx, dy, flo
         If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
     :return: A ny-by-nx ndarray of overland flow values
     """
+    mask = np.where(mask > 0, 1, 0)
     qeast, qnorth = calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_method=flow_method,
                                               epsilon=epsilon, mask=mask)
 
@@ -354,6 +359,7 @@ def calculate_overland_flow(pressure, slopex, slopey, mannings, dx, dy, flow_met
                                               epsilon=epsilon, mask=mask)
 
     if mask is not None:
+        mask = np.where(mask > 0, 1, 0)
         surface_mask = mask[-1, ...]  # shape ny, nx
     else:
         surface_mask = np.ones_like(slopex)  # shape ny, nx
