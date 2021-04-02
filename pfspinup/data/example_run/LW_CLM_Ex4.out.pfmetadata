@@ -314,7 +314,7 @@
 				"Solver.Drop":	"1E-20",
 				"Solver.DropTol":	"0.000000",
 				"Solver.EvapTrans.FileLooping":	"False",
-				"Solver.EvapTrans.FileName":	"../pfspinup/data/example_run/LW_CLM_Ex4.out.evaptrans.00000.pfb",
+				"Solver.EvapTrans.FileName":	"../pfspinup/data/example_run/LW_CLM_Ex4.out.evaptrans.pfb",
 				"Solver.EvapTransFile":	"True",
 				"Solver.EvapTransFileTransient":	"False",
 				"Solver.LSM":	"CLM",
