@@ -36,7 +36,7 @@ def test_water_table_depth_data_accessor(run, test_data_dir):
 
     wtd = np.zeros((nt, ny, nx))
     for i in data.times:
-        wtd[i, ...] = data.wtd  # TODO: Needs to be implemented
+        wtd[i, ...] = data.wtd
         data.time += 1
 
     assert np.allclose(wtd, np.load(f'{test_data_dir}/wtd.npy'), equal_nan=True)

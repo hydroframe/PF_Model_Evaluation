@@ -79,6 +79,7 @@ def calculate_subsurface_storage(porosity, pressure, saturation, specific_storag
     if mask is None:
         mask = np.ones_like(porosity)
 
+    mask = np.where(mask > 0, 1, 0)
     dz = dz[:, np.newaxis, np.newaxis]  # make 3d so we can broadcast the multiplication below
     incompressible = porosity * saturation * dz * dx * dy
     compressible = pressure * saturation * specific_storage * dz * dx * dy
@@ -104,6 +105,7 @@ def calculate_surface_storage(pressure, dx, dy, mask=None):
     if mask is None:
         mask = np.ones_like(pressure)
 
+    mask = np.where(mask > 0, 1, 0)
     surface_mask = mask[-1, ...]
     total = pressure[-1, ...] * dx * dy
     total[total < 0] = 0  # surface storage is 0 when pressure < 0
@@ -125,7 +127,7 @@ def calculate_evapotranspiration(et, dx, dy, dz, mask=None):
     """
     if mask is None:
         mask = np.ones_like(et)
-
+    mask = np.where(mask > 0, 1, 0)
     dz = dz[:, np.newaxis, np.newaxis]  # make 3d so we can broadcast the multiplication below
     total = et * dz * dx * dy
     total[mask == 0] = 0  # output values for points outside the mask are clamped to 0
@@ -133,7 +135,6 @@ def calculate_evapotranspiration(et, dx, dy, dz, mask=None):
 
 
 def _overland_flow(pressure_top, slopex, slopey, mannings, dx, dy):
-
     # Calculate fluxes across east and north faces
 
     # ---------------
@@ -172,7 +173,6 @@ def _overland_flow(pressure_top, slopex, slopey, mannings, dx, dy):
 
 
 def _overland_flow_kinematic(mask, pressure_top, slopex, slopey, mannings, dx, dy, epsilon):
-
     # We will be tweaking the slope values for this algorithm, so we make a copy
     slopex = slopex.copy()
     slopey = slopey.copy()
@@ -238,7 +238,7 @@ def calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_m
     :param dy: Length of a grid element in the y direction
     :param flow_method: Either 'OverlandFlow' or 'OverlandKinematic'
         'OverlandKinematic' by default.
-    :param epsilon: Minimum slope magnitude for solver. Only applicable if kinematic=True.
+    :param epsilon: Minimum slope magnitude for solver. Only applicable if flow_method='OverlandKinematic'.
         This is set using the Solver.OverlandKinematic.Epsilon key in Parflow.
     :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
         If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
@@ -253,7 +253,7 @@ def calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_m
     The cardinal direction along axis 0 (rows) is North (going down!!).
     The cardinal direction along axis 1 (columns) is East (going right).
     qnorth (ny+1,nx) and qeast (ny,nx+1) values are to be interpreted as follows.
-    
+
     +-------------------------------------> (East)
     |
     |                           qnorth_i,j (outflow if negative)
@@ -272,6 +272,18 @@ def calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_m
     (North)
     """
 
+    # Handle cases when expected 2D arrays come in as 3D
+    if slopex.ndim == 3:
+        assert slopex.shape[0] == 1, f'Expected shape[0] of 3D ndarray {slopex} to be 1'
+        slopex = slopex.squeeze(axis=0)
+    if slopey.ndim == 3:
+        assert slopey.shape[0] == 1, f'Expected shape[0] of 3D ndarray {slopey} to be 1'
+        slopey = slopey.squeeze(axis=0)
+    mannings = np.array(mannings)
+    if mannings.ndim == 3:
+        assert mannings.shape[0] == 1, f'Expected shape[0] of 3D ndarray {mannings} to be 1'
+        mannings = mannings.squeeze(axis=0)
+
     pressure_top = pressure[-1, ...].copy()
     pressure_top = np.nan_to_num(pressure_top)
     pressure_top[pressure_top < 0] = 0
@@ -280,6 +292,7 @@ def calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_m
     if flow_method == 'OverlandKinematic':
         if mask is None:
             mask = np.ones_like(pressure)
+        mask = np.where(mask > 0, 1, 0)
         qeast, qnorth = _overland_flow_kinematic(mask, pressure_top, slopex, slopey, mannings, dx, dy, epsilon)
     else:
         qeast, qnorth = _overland_flow(pressure_top, slopex, slopey, mannings, dx, dy)
@@ -306,6 +319,7 @@ def calculate_overland_flow_grid(pressure, slopex, slopey, mannings, dx, dy, flo
         If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
     :return: A ny-by-nx ndarray of overland flow values
     """
+    mask = np.where(mask > 0, 1, 0)
     qeast, qnorth = calculate_overland_fluxes(pressure, slopex, slopey, mannings, dx, dy, flow_method=flow_method,
                                               epsilon=epsilon, mask=mask)
 
@@ -332,7 +346,7 @@ def calculate_overland_flow(pressure, slopex, slopey, mannings, dx, dy, flow_met
     :param dy: Length of a grid element in the y direction
     :param flow_method: Either 'OverlandFlow' or 'OverlandKinematic'
         'OverlandKinematic' by default.
-    :param epsilon: Minimum slope magnitude for solver. Only applicable if kinematic=True.
+    :param epsilon: Minimum slope magnitude for solver. Only applicable if flow_method='OverlandKinematic'.
         This is set using the Solver.OverlandKinematic.Epsilon key in Parflow.
     :param mask: A nz-by-ny-by-nx ndarray of mask values (bottom layer to top layer)
         If None, assumed to be an nz-by-ny-by-nx ndarray of 1s.
@@ -342,6 +356,7 @@ def calculate_overland_flow(pressure, slopex, slopey, mannings, dx, dy, flow_met
                                               epsilon=epsilon, mask=mask)
 
     if mask is not None:
+        mask = np.where(mask > 0, 1, 0)
         surface_mask = mask[-1, ...]  # shape ny, nx
     else:
         surface_mask = np.ones_like(slopex)  # shape ny, nx
@@ -362,11 +377,11 @@ def calculate_overland_flow(pressure, slopex, slopey, mannings, dx, dy, flow_met
     edge_east = np.maximum(0, -np.diff(surface_mask, axis=1, append=0))
 
     # North flux is the sum of +ve qnorth values (shifted up by one) on north edges
-    flux_north = np.sum(np.maximum(0, -np.roll(qnorth, -1, axis=0)[np.where(edge_north == 1)]))
+    flux_north = np.sum(np.maximum(0, np.roll(qnorth, -1, axis=0)[np.where(edge_north == 1)]))
     # South flux is the negated sum of -ve qnorth values for south edges
     flux_south = np.sum(np.maximum(0, -qnorth[np.where(edge_south == 1)]))
     # West flux is the negated sum of -ve qeast values of west edges
-    flux_west = -np.sum(np.minimum(0, qeast[np.where(edge_west == 1)]))
+    flux_west = np.sum(np.maximum(0, -qeast[np.where(edge_west == 1)]))
     # East flux is the sum of +ve qeast values (shifted left by one) for east edges
     flux_east = np.sum(np.maximum(0, np.roll(qeast, -1, axis=1)[np.where(edge_east == 1)]))
 
