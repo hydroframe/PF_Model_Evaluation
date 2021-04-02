@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import pfspinup.pfio as pfio
 from pfspinup.common import calculate_subsurface_storage
@@ -28,5 +29,21 @@ def test_subsurface_storage(metadata, test_data_dir):
             calculate_subsurface_storage(porosity, pressure, saturation, specific_storage, dx, dy, dz, mask=mask),
             axis=(0, 1, 2)
         )
+
+    assert np.allclose(subsurface_storage, np.load(f'{test_data_dir}/subsurface_storage.npy'), equal_nan=True)
+
+
+@pytest.mark.xfail
+def test_subsurface_storage_data_accessor(run, test_data_dir):
+    data = run.data_accessor
+    nt = len(data.times)
+
+    subsurface_storage = np.zeros((nt,))
+    for i in data.times:
+        subsurface_storage[i, ...] = np.sum(
+            data.subsurface_storage,
+            axis=(0, 1, 2)
+        )
+        data.time += 1
 
     assert np.allclose(subsurface_storage, np.load(f'{test_data_dir}/subsurface_storage.npy'), equal_nan=True)

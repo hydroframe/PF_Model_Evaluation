@@ -27,6 +27,21 @@ def test_water_table_depth(metadata, test_data_dir):
     assert np.allclose(wtd, np.load(f'{test_data_dir}/wtd.npy'), equal_nan=True)
 
 
+@pytest.mark.xfail
+def test_water_table_depth_data_accessor(run, test_data_dir):
+    data = run.data_accessor
+    nt = len(data.times)
+    ny = run.ComputationalGrid.NY
+    nx = run.ComputationalGrid.NX
+
+    wtd = np.zeros((nt, ny, nx))
+    for i in data.times:
+        wtd[i, ...] = data.wtd
+        data.time += 1
+
+    assert np.allclose(wtd, np.load(f'{test_data_dir}/wtd.npy'), equal_nan=True)
+
+
 # WTD calculation checks for a single grid column
 # All array values are bottom -> top layer
 _dz = np.array([100, 1, 0.6, 0.3, 0.1])  # total thickness = 102, depth of last layer = 52
