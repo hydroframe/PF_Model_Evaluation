@@ -1111,3 +1111,15 @@ Solver.CLM.MetFilePath
 Geom.domain.Perm.TensorValZ
 5
 1.0d0
+20
+Solver.EvapTransFile
+4
+True
+29
+Solver.EvapTransFileTransient
+5
+False
+25
+Solver.EvapTrans.FileName
+34
+LW_CLM_Ex4.out.evaptrans.pfb
