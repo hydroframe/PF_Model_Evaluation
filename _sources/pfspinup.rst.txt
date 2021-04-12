@@ -1,0 +1,45 @@
+pfspinup package
+================
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   pfspinup.data
+
+Submodules
+----------
+
+pfspinup.common module
+----------------------
+
+.. automodule:: pfspinup.common
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+pfspinup.pfio module
+--------------------
+
+.. automodule:: pfspinup.pfio
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+pfspinup.pfmetadata module
+--------------------------
+
+.. automodule:: pfspinup.pfmetadata
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: pfspinup
+   :members:
+   :undoc-members:
+   :show-inheritance:

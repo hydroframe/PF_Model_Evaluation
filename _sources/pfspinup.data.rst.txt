@@ -1,0 +1,10 @@
+pfspinup.data package
+=====================
+
+Module contents
+---------------
+
+.. automodule:: pfspinup.data
+   :members:
+   :undoc-members:
+   :show-inheritance:
