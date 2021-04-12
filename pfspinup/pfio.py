@@ -20,7 +20,7 @@ def pfread(pfbfile):
     return arr
 
 
-def pfwrite(arr, pfbfile, overwrite=False):
+def pfwrite(arr, pfbfile, dx=1, dy=1, dz=1, overwrite=False):
     """
     Save an ndarray to a pfb file
     :param arr: ndarray to save (must be 3-dimensional)
@@ -34,5 +34,8 @@ def pfwrite(arr, pfbfile, overwrite=False):
 
     pfb_data = PFData()
     pfb_data.setDataArray(arr)
+    pfb_data.setDX(dx)
+    pfb_data.setDY(dy)
+    pfb_data.setDZ(dz)
     pfb_data.writeFile(pfbfile)
     pfb_data.close()
