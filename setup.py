@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='pfspinup',
-    version='1.0.3',
+    version='1.0.4',
     packages=['pfspinup', 'pfspinup.data'],
     package_data={'pfspinup.data': ['*', '*/*']},
     zip_safe=False,
@@ -12,7 +12,7 @@ setup(
     install_requires=[
         'pandas',
         'parflowio>=0.0.4',
-        'pftools',
+        'pftools>=1.2.0',
         'matplotlib',
         'numpy'
     ],

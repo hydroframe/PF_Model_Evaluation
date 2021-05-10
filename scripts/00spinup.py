@@ -1,5 +1,5 @@
 import numpy as np
-from pfspinup.common import calculate_surface_storage, calculate_subsurface_storage, calculate_water_table_depth, \
+from parflow.tools.hydrology import calculate_surface_storage, calculate_subsurface_storage, calculate_water_table_depth, \
     calculate_evapotranspiration, calculate_overland_flow_grid
 from pfspinup.pfmetadata import PFMetadata
 

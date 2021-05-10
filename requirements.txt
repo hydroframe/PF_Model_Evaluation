@@ -4,7 +4,7 @@ numpy
 numpydoc
 pandas
 parflowio
-pftools
+pftools>=1.2.0
 pytest
 sphinx
 sphinxcontrib-bibtex<2.0.0

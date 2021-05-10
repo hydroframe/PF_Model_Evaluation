@@ -27,7 +27,6 @@ def test_water_table_depth(metadata, test_data_dir):
     assert np.allclose(wtd, np.load(f'{test_data_dir}/wtd.npy'), equal_nan=True)
 
 
-@pytest.mark.xfail
 def test_water_table_depth_data_accessor(run, test_data_dir):
     data = run.data_accessor
     nt = len(data.times)

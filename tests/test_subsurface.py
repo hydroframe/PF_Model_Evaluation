@@ -33,7 +33,6 @@ def test_subsurface_storage(metadata, test_data_dir):
     assert np.allclose(subsurface_storage, np.load(f'{test_data_dir}/subsurface_storage.npy'), equal_nan=True)
 
 
-@pytest.mark.xfail
 def test_subsurface_storage_data_accessor(run, test_data_dir):
     data = run.data_accessor
     nt = len(data.times)

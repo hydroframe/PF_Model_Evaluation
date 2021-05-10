@@ -28,7 +28,6 @@ def test_et(run, metadata, test_data_dir):
     assert np.allclose(evapotranspiration, np.load(f'{test_data_dir}/evapotranspiration.npy'), equal_nan=True)
 
 
-@pytest.mark.xfail
 def test_et_data_accessor(run, test_data_dir):
     data = run.data_accessor
     nt = len(data.times)

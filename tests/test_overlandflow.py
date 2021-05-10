@@ -35,7 +35,6 @@ def test_overland_flow_grid(metadata, test_data_dir):
     assert np.allclose(overland_flow, np.load(f'{test_data_dir}/overland_flow_grid.npy'), equal_nan=True)
 
 
-@pytest.mark.xfail
 def test_overland_flow_grid_data_accessor(run, test_data_dir):
     data = run.data_accessor
     nt = len(data.times)
@@ -84,7 +83,6 @@ def test_overland_flow(metadata, test_data_dir):
     ))
 
 
-@pytest.mark.xfail
 def test_overland_flow_data_accessor(run, test_data_dir):
     data = run.data_accessor
     data.time = 0
@@ -132,7 +130,6 @@ def test_overland_flow_kinematic_grid(metadata, test_data_dir):
     assert np.allclose(overland_flow, np.load(f'{test_data_dir}/overland_flow_kinematic_grid.npy'), equal_nan=True)
 
 
-@pytest.mark.xfail
 def test_overland_flow_kinematic_grid_data_accessor(run, test_data_dir):
     data = run.data_accessor
     data.time = 0
