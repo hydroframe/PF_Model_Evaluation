@@ -41,6 +41,8 @@ for i in data.times:
 
     # nz-by-ny-by-nx array of ET values (bottom to top layer)
     print(data.et)
+    
+    data.time += 1
 ```
 
 ### Overland flow
@@ -61,6 +63,8 @@ for i in data.times:
         
     # Total outflow for the domain (scalar value) - 'OverlandFlow' flow method
     print(data.overland_flow(flow_method='OverlandFlow'))
+    
+    data.time += 1
 ```
 
 ### Sub-surface/Surface storage
@@ -75,6 +79,8 @@ for i in data.times:
 
     # ny-by-nx array of surface storage values
     print(data.surface_storage)
+    
+    data.time += 1
 ```
 
 ### Water Table Depth
@@ -86,7 +92,8 @@ for i in data.times:
 
     # ny-by-nx array of water table depth values
     print(data.wtd)
-        
+   
+    data.time += 1     
 ```
 
 ## Other useful properties
